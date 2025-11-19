@@ -129,6 +129,14 @@ def extract_video_id(url):
 def index():
     return render_template('index.html')
 
+@app.route('/api')
+def api():
+    try:
+        return {"message": "Working!"}
+    except Exception as e:
+        return str(e), 500
+
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     # 1. API Key Check
