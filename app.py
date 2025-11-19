@@ -1,13 +1,9 @@
 import os
 import re
-import random
-import hashlib
 from dotenv import load_dotenv
-from collections import Counter # ADDED: Required for finding top keywords
-
-# Flask and HTTP libraries
-from flask import Flask, render_template, request, jsonify
+from collections import Counter
 from urllib.parse import urlparse, parse_qs
+from flask import Flask, render_template, request, jsonify
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -19,41 +15,7 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 app = Flask(__name__)
 
-# --- SENTIMENT ANALYSIS LEXICON ---
-positive_words = {
-    'love', 'amazing', 'great', 'excellent', 'best', 'happy', 'fantastic',
-    'wonderful', 'beautiful', 'awesome', 'good', 'nice', 'perfect', 'brilliant',
-    'pleased', 'delightful', 'joy', 'excited', 'positive', 'superb',
-    'incredible', 'outstanding', 'flawless', 'charming', 'magnificent', 'gorgeous',
-    'stunning', 'impressive', 'favorable', 'successful', 'thriving', 'effective',
-    'spectacular', 'breathtaking', 'phenomenal', 'glowing', 'radiant', 'blessed',
-    'champion', 'win', 'adore', 'admire', 'praise', 'inspire', 'motivate',
-    'satisfied', 'content', 'grateful', 'thankful', 'eloquent', 'vibrant',
-    'uplifting', 'encouraging', 'supportive', 'terrific', 'splendid', 'fabulous',
-    'stellar', 'triumphant', 'victory', 'genius', 'masterful', 'innovative'
-}
-negative_words = {
-    'terrible', 'bad', 'hate', 'awful', 'disappointed', 'worst', 'poor',
-    'unhelpful', 'mess', 'sad', 'horrible', 'dreadful', 'unhappy', 'frustrating',
-    'annoyed', 'useless', 'lousy', 'negative', 'broken', 'fail',
-    'disgusting', 'horrendous', 'miserable', 'unpleasant', 'inadequate', 'painful',
-    'flawed', 'unfortunate', 'dire', 'abysmal', 'deficient', 'tragic',
-    'pathetic', 'ridiculous', 'inferior', 'terrible', 'waste', 'disgust',
-    'suffer', 'struggle', 'lost', 'depressing', 'dismal', 'gloomy',
-    'insulting', 'offensive', 'aggravating', 'annoying', 'vile', 'nasty',
-    'filthy', 'revolting', 'detestable', 'repugnant', 'disastrous', 'catastrophic'
-}
-explicit_words = {
-    'fuck', 'shit', 'bitch', 'asshole', 'damn', 'cunt', 'piss', 'hell',
-    'chutiya', 'madarchod', 'behenchod', 'randi', 'bhosadi', 'bhenchod',
-    'gaandu', 'lund', 'tatti', 'madar chod'
-}
-intensifiers = {
-    'very', 'really', 'extremely', 'super', 'so', 'incredibly', 'highly', 'utterly', 'truly'
-}
-negations = {
-    'not', 'never', 'no', 'don\'t', 'doesn\'t', 'isn\'t', 'wasn\'t', 'couldn\'t', 'won\'t'
-}
+from words import positive_words, negative_words, explicit_words, intensifiers, negations
 
 # --- HELPER FUNCTIONS ---
 
@@ -129,14 +91,6 @@ def extract_video_id(url):
 def index():
     return render_template('index.html')
 
-@app.route('/api')
-def api():
-    try:
-        return {"message": "Working!"}
-    except Exception as e:
-        return str(e), 500
-
-
 @app.route('/analyze', methods=['POST'])
 def analyze():
     # 1. API Key Check
@@ -160,7 +114,6 @@ def analyze():
         
         # --- Test for comments status (403 fix) ---
         try:
-            # We perform a small check to see if the comment API works
             youtube.commentThreads().list(
                 part="id",
                 videoId=video_id,
@@ -262,12 +215,12 @@ def analyze():
         "positive": round(total_positive, 1),
         "negative": round(total_negative, 1),
         "comment_count": comment_count,
-        "positive_keywords": top_positive_keywords, # RETURN PROOF
-        "negative_keywords": top_negative_keywords  # RETURN PROOF
+        "positive_keywords": top_positive_keywords,
+        "negative_keywords": top_negative_keywords
     })
 
 if __name__ == "__main__":
-    # Creates the file structure and saves the HTML
+    # Creates the file structure and saves the HTML/JS content
     if not os.path.exists('templates'):
         os.makedirs('templates')
     if not os.path.exists('static'):
@@ -353,5 +306,127 @@ if __name__ == "__main__":
 </body>
 </html>""")
 
+    # Saves the JavaScript content to the static folder
+    with open('static/script.js', 'w') as f:
+        f.write("""document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('urlInput').addEventListener('keyup', (event) => {
+        if (event.key === 'Enter') {
+            analyzeUrl();
+        }
+    });
+});
+
+async function analyzeUrl() {
+    const urlInput = document.getElementById('urlInput').value.trim();
+    const analyzeButton = document.getElementById('analyzeButton');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const resultBox = document.getElementById('resultBox');
+    const errorBox = document.getElementById('errorBox');
+    const loadingText = document.getElementById('loadingText');
+
+    resultBox.classList.add('hidden');
+    errorBox.classList.add('hidden');
+    loadingMessage.classList.remove('hidden');
+    
+    analyzeButton.disabled = true;
+
+    const urlPattern = /^(http|https):\\/\\/[^ "]+$/;
+    if (!urlInput) {
+        showError("Please enter a URL to analyze.");
+        return;
+    }
+    if (!urlPattern.test(urlInput)) {
+        showError("Invalid URL format. Please enter a full URL starting with http:// or https://.");
+        return;
+    }
+
+    try {
+        loadingText.textContent = "Sending URL to server...";
+
+        const response = await fetch('/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: urlInput })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Server returned status: ${response.status}`);
+        }
+
+        loadingText.textContent = "Analyzing comments...";
+
+        const result = await response.json();
+
+        loadingMessage.classList.add('hidden');
+        analyzeButton.disabled = false;
+
+        if (result.error) {
+            showError(result.error);
+        } else {
+            const sentiment = result.sentiment;
+            const positive = result.positive;
+            const negative = result.negative;
+            const commentCount = result.comment_count;
+            const positiveKeywords = result.positive_keywords; 
+            const negativeKeywords = result.negative_keywords; 
+
+            const sentimentText = document.getElementById('overallSentiment');
+            const positivePercentage = document.getElementById('positivePercentage');
+            const negativePercentage = document.getElementById('negativePercentage');
+            const positiveBar = document.getElementById('positiveBar');
+            const negativeBar = document.getElementById('negativeBar');
+            const commentsAnalyzed = document.getElementById('commentsAnalyzed');
+
+            sentimentText.textContent = `Overall Sentiment: ${sentiment}`;
+            positivePercentage.textContent = `Positive: ${positive}%`;
+            negativePercentage.textContent = `Negative: ${negative}%`;
+            commentsAnalyzed.textContent = `Analyzed ${commentCount} comments.`;
+
+            positiveBar.style.width = `${positive}%`;
+            negativeBar.style.width = `${negative}%`;
+
+            positiveBar.style.float = 'left';
+            negativeBar.style.float = 'right';
+
+            // Populate Keyword Lists (Proof Section)
+            const posList = document.getElementById('positiveKeywordsList');
+            const negList = document.getElementById('negativeKeywordsList');
+
+            posList.innerHTML = positiveKeywords.map(word => `<li>${word}</li>`).join('') || '<li>None found</li>';
+            negList.innerHTML = negativeKeywords.map(word => `<li>${word}</li>`).join('') || '<li>None found</li>';
+
+            if (sentiment === 'Positive') {
+                resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-positive';
+            } else if (sentiment === 'Negative') {
+                resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-negative';
+            } else {
+                resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-neutral';
+            }
+            resultBox.classList.remove('hidden');
+        }
+
+    } catch (error) {
+        loadingMessage.classList.add('hidden');
+        analyzeButton.disabled = false;
+        console.error("Fetch error:", error);
+        showError("A connection error occurred. Ensure the Flask server is running and the URL is correct.");
+    }
+}
+
+function showError(message) {
+    const errorBox = document.getElementById('errorBox');
+    const errorMessage = document.getElementById('errorMessage');
+    const analyzeButton = document.getElementById('analyzeButton');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const resultBox = document.getElementById('resultBox');
+
+    loadingMessage.classList.add('hidden');
+    resultBox.classList.add('hidden');
+    analyzeButton.disabled = false;
+    
+    errorMessage.textContent = message;
+    errorBox.classList.remove('hidden');
+}""")
+    
     # Run the Flask application
     app.run(debug=True)

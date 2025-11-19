@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Event listener for the Enter key on the input field
     document.getElementById('urlInput').addEventListener('keyup', (event) => {
         if (event.key === 'Enter') {
             analyzeUrl();
@@ -7,9 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-/**
- * Initiates the sentiment analysis by fetching data from the Flask backend.
- */
 async function analyzeUrl() {
     const urlInput = document.getElementById('urlInput').value.trim();
     const analyzeButton = document.getElementById('analyzeButton');
@@ -18,7 +14,6 @@ async function analyzeUrl() {
     const errorBox = document.getElementById('errorBox');
     const loadingText = document.getElementById('loadingText');
 
-    // Hide previous results and errors
     resultBox.classList.add('hidden');
     errorBox.classList.add('hidden');
     loadingMessage.classList.remove('hidden');
@@ -38,7 +33,6 @@ async function analyzeUrl() {
     try {
         loadingText.textContent = "Sending URL to server...";
 
-        // Step 1: Send the request to the Flask backend
         const response = await fetch('/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -51,23 +45,20 @@ async function analyzeUrl() {
 
         loadingText.textContent = "Analyzing comments...";
 
-        // Step 2: Parse the JSON result
         const result = await response.json();
 
         loadingMessage.classList.add('hidden');
         analyzeButton.disabled = false;
 
-        // Step 3: Handle Errors returned in the JSON payload
         if (result.error) {
             showError(result.error);
         } else {
-            // Step 4: Destructure and display results
             const sentiment = result.sentiment;
             const positive = result.positive;
             const negative = result.negative;
             const commentCount = result.comment_count;
-            const positiveKeywords = result.positive_keywords; // NEW
-            const negativeKeywords = result.negative_keywords; // NEW
+            const positiveKeywords = result.positive_keywords; 
+            const negativeKeywords = result.negative_keywords; 
 
             const sentimentText = document.getElementById('overallSentiment');
             const positivePercentage = document.getElementById('positivePercentage');
@@ -81,11 +72,9 @@ async function analyzeUrl() {
             negativePercentage.textContent = `Negative: ${negative}%`;
             commentsAnalyzed.textContent = `Analyzed ${commentCount} comments.`;
 
-            // Animate the percentage bars
             positiveBar.style.width = `${positive}%`;
             negativeBar.style.width = `${negative}%`;
 
-            // Correct bar layout for separation
             positiveBar.style.float = 'left';
             negativeBar.style.float = 'right';
 
@@ -96,7 +85,6 @@ async function analyzeUrl() {
             posList.innerHTML = positiveKeywords.map(word => `<li>${word}</li>`).join('') || '<li>None found</li>';
             negList.innerHTML = negativeKeywords.map(word => `<li>${word}</li>`).join('') || '<li>None found</li>';
 
-            // Set box color based on sentiment
             if (sentiment === 'Positive') {
                 resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-positive';
             } else if (sentiment === 'Negative') {
@@ -115,9 +103,6 @@ async function analyzeUrl() {
     }
 }
 
-/**
- * Handles the display of error messages.
- */
 function showError(message) {
     const errorBox = document.getElementById('errorBox');
     const errorMessage = document.getElementById('errorMessage');
