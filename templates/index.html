@@ -11,7 +11,6 @@
         .glass { background: #ffffff; border-radius: 1rem; }
         .input-glass { background: #f0f4f8; border-radius: 0.75rem; border: none; outline: none; }
         .input-glass:focus { box-shadow: 0 0 0 2px #2563eb; }
-        /* Custom scrollbar for the feed */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -26,7 +25,7 @@
                 <p class="text-xs font-bold text-slate-400 tracking-widest mt-1">V2.0 LIVE ENVIRONMENT</p>
             </div>
             <div id="authStatus" class="px-4 py-2 bg-slate-200 text-slate-500 text-xs font-black rounded-full uppercase tracking-widest">
-                Status: Locked
+                Status: Awaiting Verification
             </div>
         </header>
 
@@ -42,12 +41,12 @@
             <div class="lg:col-span-5 space-y-6">
                 
                 <div id="authPanel" class="glass p-8 shadow-sm border border-slate-100">
-                    <h3 class="text-sm font-black text-blue-600 mb-4 uppercase tracking-widest">System Access</h3>
+                    <h3 class="text-sm font-black text-blue-600 mb-4 uppercase tracking-widest">Human Validation</h3>
                     <div class="space-y-4">
-                        <button onclick="generateOTP()" class="w-full bg-[#1e293b] hover:bg-slate-900 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase tracking-wide shadow-md">1. GENERATE AUTH TOKEN</button>
+                        <button onclick="generateOTP()" class="w-full bg-[#1e293b] hover:bg-slate-900 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase tracking-wide shadow-md">1. INITIALIZE SECURITY CHECK</button>
                         <div id="otpDisplay" class="hidden text-center p-3 bg-slate-100 rounded-xl font-mono text-lg font-bold tracking-widest text-slate-700"></div>
-                        <input type="text" id="otpInput" placeholder="ENTER TOKEN" class="w-full input-glass p-4 text-center font-black uppercase text-slate-700 placeholder-slate-400 hidden">
-                        <button id="verifyBtn" onclick="verifyOTP()" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase tracking-wide shadow-md">2. VERIFY & UNLOCK</button>
+                        <input type="text" id="otpInput" placeholder="ENTER CAPTCHA CODE" class="w-full input-glass p-4 text-center font-black uppercase text-slate-700 placeholder-slate-400 hidden">
+                        <button id="verifyBtn" onclick="verifyOTP()" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase tracking-wide shadow-md">2. VERIFY HUMAN IDENTITY</button>
                     </div>
                 </div>
 
@@ -59,7 +58,7 @@
                     
                     <div>
                         <label class="block text-xs font-black text-blue-600 mb-2 uppercase tracking-widest">No. of Comments</label>
-                        <input type="number" id="depth" value="50" min="10" max="2000" class="w-full input-glass p-4 text-xl font-black text-slate-900">
+                        <input type="number" id="depth" placeholder="e.g. 50" min="1" max="2000" class="w-full input-glass p-4 text-xl font-black text-slate-900">
                     </div>
 
                     <button onclick="startAnalysis()" id="analyzeBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-4 rounded-xl transition-all uppercase tracking-widest shadow-lg shadow-blue-500/30">
@@ -85,8 +84,8 @@
                         </div>
                         
                         <div class="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex mb-3">
-                            <div id="pB" class="h-full bg-blue-600 transition-all duration-1000" style="width: 50%"></div>
-                            <div id="nB" class="h-full bg-rose-500 transition-all duration-1000" style="width: 50%"></div>
+                            <div id="pB" class="h-full bg-blue-600 transition-all duration-1000" style="width: 0%"></div>
+                            <div id="nB" class="h-full bg-rose-500 transition-all duration-1000" style="width: 0%"></div>
                         </div>
                         
                         <div class="flex justify-between text-[10px] font-bold uppercase tracking-wider">
@@ -97,8 +96,7 @@
                     
                     <div class="glass p-6 shadow-sm border border-slate-100">
                         <h3 class="text-xs font-black text-slate-400 mb-4 uppercase tracking-widest border-b border-slate-100 pb-2">Live Data Stream</h3>
-                        <div id="fd" class="space-y-3 h-[450px] overflow-y-auto pr-2">
-                            </div>
+                        <div id="fd" class="space-y-3 h-[450px] overflow-y-auto pr-2"></div>
                     </div>
 
                 </div>
@@ -108,12 +106,10 @@
     </div>
 
     <script>
-        // System Identification Check
         console.log("Terminal Output - Mrinal Dashora - Roll Number: 24BCON1413");
 
         let currentOTP = "";
 
-        // Authentication Logic
         function generateOTP() {
             currentOTP = Math.floor(100000 + Math.random() * 900000).toString();
             const display = document.getElementById('otpDisplay');
@@ -126,28 +122,25 @@
         function verifyOTP() {
             const input = document.getElementById('otpInput').value;
             if(input === currentOTP) {
-                // Unlock UI
                 document.getElementById('authPanel').classList.add('hidden');
                 document.getElementById('controlPanel').classList.remove('hidden');
                 
                 const status = document.getElementById('authStatus');
-                status.innerText = "Status: Online";
+                status.innerText = "Status: Verified Human";
                 status.classList.replace('bg-slate-200', 'bg-emerald-100');
                 status.classList.replace('text-slate-500', 'text-emerald-700');
             } else {
-                alert("Invalid Auth Token. Please try again.");
+                alert("Security check failed. Please enter the correct code.");
             }
         }
 
-        // Analysis Logic
         async function startAnalysis() {
             const url = document.getElementById('videoUrl').value;
-            const depth = document.getElementById('depth').value;
+            const depth = document.getElementById('depth').value || 50; // Default to 50 if empty on submit
             const btn = document.getElementById('analyzeBtn');
             
             if(!url) { alert("Please enter a Video URL"); return; }
 
-            // UI Reset
             btn.innerText = "ANALYZING...";
             btn.classList.add('opacity-50', 'cursor-not-allowed');
             document.getElementById('dataUI').classList.remove('hidden');
@@ -168,22 +161,18 @@
                     return;
                 }
 
-                // Show Video Info
                 document.getElementById('videoInfo').classList.remove('hidden');
                 document.getElementById('thumb').src = data.thumbnail;
                 document.getElementById('vidTitle').innerText = data.title;
 
-                // Update Progress Bars
                 document.getElementById('pT').innerText = data.positive_percentage + '%';
                 document.getElementById('nT').innerText = data.negative_percentage + '%';
                 document.getElementById('pB').style.width = data.positive_percentage + '%';
                 document.getElementById('nB').style.width = data.negative_percentage + '%';
 
-                // Populate Feed
                 const feed = document.getElementById('fd');
                 data.comments.forEach(c => {
                     const el = document.createElement('div');
-                    // Style based on sentiment
                     if(c.sentiment === 'Positive') {
                         el.className = 'p-3 bg-blue-50 border-l-2 border-blue-500 text-sm text-slate-700 rounded-r-md';
                     } else {
