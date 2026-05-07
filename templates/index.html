@@ -44,10 +44,10 @@
                 <div id="authPanel" class="glass p-8 shadow-sm border border-slate-100">
                     <h3 class="text-sm font-black text-blue-600 mb-4 uppercase tracking-widest">System Access</h3>
                     <div class="space-y-4">
-                        <button onclick="generateOTP()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl transition-all text-sm uppercase tracking-wide">1. Generate Auth Token</button>
+                        <button onclick="generateOTP()" class="w-full bg-[#1e293b] hover:bg-slate-900 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase tracking-wide shadow-md">1. GENERATE AUTH TOKEN</button>
                         <div id="otpDisplay" class="hidden text-center p-3 bg-slate-100 rounded-xl font-mono text-lg font-bold tracking-widest text-slate-700"></div>
                         <input type="text" id="otpInput" placeholder="ENTER TOKEN" class="w-full input-glass p-4 text-center font-black uppercase text-slate-700 placeholder-slate-400 hidden">
-                        <button id="verifyBtn" onclick="verifyOTP()" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-all text-sm uppercase tracking-wide">2. Verify & Unlock</button>
+                        <button id="verifyBtn" onclick="verifyOTP()" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase tracking-wide shadow-md">2. VERIFY & UNLOCK</button>
                     </div>
                 </div>
 
@@ -58,7 +58,7 @@
                     </div>
                     
                     <div>
-                        <label class="block text-xs font-black text-blue-600 mb-2 uppercase tracking-widest">Analysis Depth</label>
+                        <label class="block text-xs font-black text-blue-600 mb-2 uppercase tracking-widest">No. of Comments</label>
                         <input type="number" id="depth" value="50" min="10" max="2000" class="w-full input-glass p-4 text-xl font-black text-slate-900">
                     </div>
 
