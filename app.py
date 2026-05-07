@@ -1,432 +1,104 @@
 import os
 import re
+import random
 from dotenv import load_dotenv
-from collections import Counter
-from urllib.parse import urlparse, parse_qs
 from flask import Flask, render_template, request, jsonify
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+from words import positive_words, negative_words, explicit_words, intensifiers, negations
 
-# Load environment variables from .env file
 load_dotenv() 
-
-# --- API KEY & FLASK SETUP ---
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 app = Flask(__name__)
+active_otps = {}
 
-from words import positive_words, negative_words, explicit_words, intensifiers, negations
+# --- ARCHITECT: MRINAL DASHORA | 24BCON1413 ---
 
-# --- HELPER FUNCTIONS ---
-
-def analyze_sentiment(text):
-    """Performs sentiment analysis on a given text string, tracking key phrases and neutral words."""
-    normalized_text = re.sub(r'[.,\/#!$%\^&\*;:{}=\-_`~()]', '', text.lower())
-    words = normalized_text.split()
-
-    positive_points = 0
-    negative_points = 0
-    neutral_count = 0
-    
-    positive_phrases = [] 
-    negative_phrases = []
-
-    if any(word in explicit_words for word in words):
-        return {
-            "positive_points": 0, "negative_points": 100, "neutral_points": 0, "is_explicit": True,
-            "positive_phrases": [], "negative_phrases": ['Explicit Content Found']
-        } 
+def analyze_and_highlight(text):
+    if not text: return None
+    words = text.split()
+    p_pts, n_pts = 0, 0
+    highlighted_words = []
+    is_explicit = any(re.sub(r'\W+', '', w.lower()) in explicit_words for w in words)
 
     for i, word in enumerate(words):
-        is_negated = i > 0 and words[i - 1] in negations
-        intensity_multiplier = 1.5 if i > 0 and words[i - 1] in intensifiers else 1
+        clean = re.sub(r'\W+', '', word.lower())
+        is_negated = i > 0 and words[i-1].lower() in negations
+        weight = 2.0 if i > 0 and words[i-1].lower() in intensifiers else 1.0
         
-        # Determine the phrase to save (word or intensifier + word)
-        phrase = (words[i-1] + " " + word) if intensity_multiplier > 1 and i > 0 else word
+        display = word
+        if clean in positive_words:
+            if is_negated: n_pts += weight; display = f'<b class="text-rose-600 underline">{word}</b>'
+            else: p_pts += weight; display = f'<b class="text-blue-600 underline">{word}</b>'
+        elif clean in negative_words:
+            if is_negated: p_pts += weight; display = f'<b class="text-blue-600 underline">{word}</b>'
+            else: n_pts += weight; display = f'<b class="text-rose-600 underline">{word}</b>'
+        highlighted_words.append(display)
 
-        if word in positive_words:
-            if is_negated:
-                negative_points += intensity_multiplier
-                negative_phrases.append("not " + phrase)
-            else:
-                positive_points += intensity_multiplier
-                positive_phrases.append(phrase)
-        elif word in negative_words:
-            if is_negated:
-                positive_points += intensity_multiplier
-                positive_phrases.append("not " + phrase)
-            else:
-                negative_points += intensity_multiplier
-                negative_phrases.append(phrase)
-        else:
-            neutral_count += 1 # Count neutral words
-    
-    return {
-        "positive_points": positive_points,
-        "negative_points": negative_points,
-        "neutral_points": neutral_count,
-        "is_explicit": False,
-        "positive_phrases": positive_phrases,
-        "negative_phrases": negative_phrases
-    }
+    return {"p": p_pts, "n": n_pts, "html": " ".join(highlighted_words), "explicit": is_explicit}
 
-def extract_video_id(url):
-    """Extracts the 11-character Video ID from various YouTube URL formats."""
-    query = urlparse(url).query
-    video_id = parse_qs(query).get('v')
-    if video_id:
-        return video_id[0]
-    
-    path = urlparse(url).path
-    if path and ('youtu.be' in url or 'youtube.com' in url):
-        match = re.search(r'([a-zA-Z0-9_-]{11})', path)
-        if match:
-            return match.group(1)
-        
-    return None
-
-# --- FLASK ROUTES ---
+def extract_id(url):
+    from urllib.parse import urlparse, parse_qs
+    v_id = parse_qs(urlparse(url).query).get('v')
+    if v_id: return v_id[0]
+    match = re.search(r'([a-zA-Z0-9_-]{11})', urlparse(url).path)
+    return match.group(1) if match else None
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
+@app.route('/request_otp', methods=['POST'])
+def request_otp():
+    data = request.get_json()
+    email = data.get('email', '')
+    if not re.match(r'^[a-zA-Z0-9._%+-]+@gmail\.com$', email):
+        return jsonify({"error": "Invalid Gmail format."})
+    otp = str(random.randint(1000, 9999))
+    active_otps[email] = otp
+    return jsonify({"success": True, "code": otp})
+
+@app.route('/get_meta', methods=['POST'])
+def get_meta():
+    data = request.get_json()
+    v_id = extract_id(data.get('url', ''))
+    if not v_id: return jsonify({"error": "Invalid URL"})
+    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+    v_resp = youtube.videos().list(part="snippet,statistics", id=v_id).execute()
+    item = v_resp['items'][0]
+    return jsonify({
+        "title": item['snippet']['title'],
+        "thumb": item['snippet']['thumbnails']['high']['url'],
+        "total": int(item['statistics'].get('commentCount', 0))
+    })
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    # 1. API Key Check
-    if not YOUTUBE_API_KEY:
-        return jsonify({"error": "YouTube API Key is missing. Please check your .env file.", "error_type": "api_key_error"})
-
     data = request.get_json()
-    url = data.get('url', '')
-    comments_to_analyze = []
-    MAX_COMMENTS_TO_FETCH = 200
+    v_id, limit = extract_id(data.get('url', '')), int(data.get('limit', 100))
+    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+    comments_data, next_token = [], None
+    while len(comments_data) < limit:
+        res = youtube.commentThreads().list(part="snippet", videoId=v_id, maxResults=100, pageToken=next_token).execute()
+        for item in res.get("items", []):
+            snippet = item["snippet"]["topLevelComment"]["snippet"]
+            comments_data.append({"author": snippet["authorDisplayName"], "avatar": snippet["authorProfileImageUrl"], "text": snippet["textDisplay"]})
+        next_token = res.get('nextPageToken')
+        if not next_token: break
 
-    # 2. Extract Video ID
-    video_id = extract_video_id(url)
-    if not video_id:
-        return jsonify({"error": "Invalid URL or could not extract a YouTube video ID. Please use a valid YouTube link.", "error_type": "invalid_id"})
-
-    try:
-        # 3. Initialize the YouTube API Service
-        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-        next_page_token = None
-        
-        # --- Test for comments status (403 fix) ---
-        try:
-            youtube.commentThreads().list(
-                part="id",
-                videoId=video_id,
-                maxResults=1
-            ).execute()
-        except HttpError as e:
-            if e.resp.status == 403:
-                 return jsonify({"sentiment": "Neutral", "positive": 50.0, "negative": 50.0, "comment_count": 0, "positive_keywords": [], "negative_keywords": [], "error": "Comments are disabled or restricted for this video."})
-            raise e 
-        # --- END TEST ---
-        
-        # 4. Loop to fetch comments (Paging logic)
-        while len(comments_to_analyze) < MAX_COMMENTS_TO_FETCH:
-            if len(comments_to_analyze) >= MAX_COMMENTS_TO_FETCH:
-                break
-                
-            request_api = youtube.commentThreads().list(
-                part="snippet",
-                videoId=video_id,
-                maxResults=min(100, MAX_COMMENTS_TO_FETCH - len(comments_to_analyze)), 
-                pageToken=next_page_token,
-                textFormat="plainText"
-            )
-            response = request_api.execute()
-
-            # 5. Extract comments and add to list
-            for item in response.get("items", []):
-                comment_text = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-                comments_to_analyze.append(comment_text)
-
-            next_page_token = response.get('nextPageToken')
-            if not next_page_token:
-                break 
-
-    except HttpError as e:
-        # 6. Handle API Errors (Quota, Video Not Found, etc.)
-        status = e.resp.status
-        if status == 404:
-            error_message = "Video not found or is private/deleted."
-        elif status == 403:
-            error_message = "API Quota exceeded or Access Denied. Check your Google Cloud Console."
-        else:
-            error_message = f"YouTube API Error (Code: {status}). Could not fetch comments."
-            
-        return jsonify({"error": error_message, "error_type": "api_error"})
+    stream, tp, tn = [], 0, 0
+    for c in comments_data:
+        analysis = analyze_and_highlight(c["text"])
+        if not analysis: continue
+        tp += analysis["p"]; tn += analysis["n"]
+        stream.append({"author": c["author"], "avatar": c["avatar"], "html": analysis["html"], "explicit": analysis["explicit"], "is_neg": analysis["n"] > analysis["p"]})
     
-    # 7. Sentiment Calculation
-    comment_count = len(comments_to_analyze)
-    
-    if comment_count == 0:
-        return jsonify({"sentiment": "Neutral", "positive": 50.0, "negative": 50.0, "comment_count": 0, "positive_keywords": [], "negative_keywords": [], "error": "No comments found on this video."})
-
-    all_results = [analyze_sentiment(comment) for comment in comments_to_analyze]
-
-    # --- AGGREGATE PHRASES (PROOF) ---
-    all_positive_phrases = [phrase for r in all_results for phrase in r.get('positive_phrases', [])]
-    all_negative_phrases = [phrase for r in all_results for phrase in r.get('negative_phrases', [])]
-    
-    top_positive_keywords = [item[0] for item in Counter(all_positive_phrases).most_common(5)]
-    top_negative_keywords = [item[0] for item in Counter(all_negative_phrases).most_common(5)]
-    # --------------------------------
-
-    # Calculate overall score (using Neutral points for accurate percentage)
-    total_positive_points = sum(r['positive_points'] for r in all_results)
-    total_negative_points = sum(r['negative_points'] for r in all_results)
-    total_neutral_points = sum(r['neutral_points'] for r in all_results)
-    total_score_for_percentage = total_positive_points + total_negative_points + total_neutral_points
-
-    if any(r["is_explicit"] for r in all_results):
-        overall_sentiment = "Negative"
-        total_positive = 0.0
-        total_negative = 100.0
-    elif total_score_for_percentage == 0:
-        overall_sentiment = "Neutral"
-        total_positive = 50.0
-        total_negative = 50.0
-    else:
-        # Calculate percentages against ALL words for accuracy (Neutrality Damping)
-        total_positive = (total_positive_points / total_score_for_percentage) * 100
-        total_negative = (total_negative_points / total_score_for_percentage) * 100
-        
-        # Determine final sentiment category based on net sentiment points (P vs N)
-        sentiment_points = total_positive_points + total_negative_points
-        
-        if sentiment_points == 0:
-            overall_sentiment = "Neutral"
-        else:
-            net_sentiment = (total_positive_points - total_negative_points) / sentiment_points
-            
-            if net_sentiment > 0.1: 
-                overall_sentiment = "Positive"
-            elif net_sentiment < -0.1: 
-                overall_sentiment = "Negative"
-            else:
-                overall_sentiment = "Neutral"
-
+    weight = tp + tn
     return jsonify({
-        "sentiment": overall_sentiment,
-        "positive": round(total_positive, 1),
-        "negative": round(total_negative, 1),
-        "comment_count": comment_count,
-        "positive_keywords": top_positive_keywords,
-        "negative_keywords": top_negative_keywords
+        "positive": round((tp/weight*100), 1) if weight > 0 else 50,
+        "negative": round((tn/weight*100), 1) if weight > 0 else 50,
+        "stream": stream
     })
 
 if __name__ == "__main__":
-    # Creates the file structure and saves the HTML/JS content
-    if not os.path.exists('templates'):
-        os.makedirs('templates')
-    if not os.path.exists('static'):
-        os.makedirs('static')
-    
-    # Saves the HTML content to the templates folder
-    with open('templates/index.html', 'w') as f:
-        f.write("""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time CogniSense</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0d1117; color: #c9d1d9; }
-        .container { max-width: 600px; }
-        #resultBox { transition: background-color 0.5s ease-in-out, transform 0.3s ease-in-out; }
-        #resultBox:hover { transform: translateY(-5px); }
-        .result-positive { background-color: #235532; color: #2ecc71; }
-        .result-negative { background-color: #552323; color: #e74c3c; }
-        .result-neutral { background-color: #313338; color: #f1c40f; }
-        #loadingSpinner { border-top-color: #3498db; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
-        @-webkit-keyframes spinner { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
-        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .percentage-bar { transition: width 1s ease-in-out; }
-    </style>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-</head>
-<body class="flex items-center justify-center min-h-screen p-4">
-    <div class="container bg-gray-800 p-8 rounded-xl shadow-lg text-center">
-        <h1 class="text-4xl font-bold mb-2 text-white">Real-time YouTube Sentiment Analyzer </h1>
-        <p class="text-sm text-gray-400 mb-6">Fetches and analyzes the latest public comments from a YouTube video.</p>
-
-        <div class="mb-4">
-            <input type="text" id="urlInput" class="w-full p-3 rounded-lg bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste a YouTube video URL (e.g., youtube.com/watch?v=...)">
-        </div>
-
-        <button id="analyzeButton" onclick="analyzeUrl()" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-            Analyze URL
-        </button>
-
-        <div id="loadingMessage" class="hidden text-center mt-4">
-            <div id="loadingSpinner" class="w-8 h-8 border-4 border-gray-600 border-solid rounded-full inline-block"></div>
-            <p id="loadingText" class="mt-2 text-gray-400">Connecting to server...</p>
-        </div>
-
-        <div id="errorBox" class="hidden mt-6 bg-red-800 bg-opacity-30 p-4 rounded-lg border border-red-700 text-red-400">
-            <p id="errorMessage" class="font-bold">An error occurred. Please check the server status.</p>
-        </div>
-        
-        <div id="resultBox" class="hidden mt-6 p-6 rounded-xl border border-gray-700 text-center">
-            <h2 class="text-2xl font-bold mb-2 text-white">Analysis Result</h2>
-            <p id="overallSentiment" class="text-xl font-bold mb-4">Overall Sentiment: </p>
-            
-            <div class="flex justify-between text-sm font-semibold mb-2">
-                <span id="positivePercentage" class="text-green-400"></span>
-                <span id="negativePercentage" class="text-red-400"></span>
-            </div>
-            <div class="w-full h-4 rounded-full bg-gray-600 overflow-hidden mb-4">
-                <div id="positiveBar" class="h-full bg-green-500 float-left rounded-full percentage-bar"></div>
-                <div id="negativeBar" class="h-full bg-red-500 float-left rounded-full percentage-bar"></div>
-            </div>
-
-            <h3 class="text-lg font-bold mt-6 mb-2 text-white">Top Sentiment Keywords (Proof)</h3>
-            <div class="grid grid-cols-2 gap-4 text-left">
-                <div class="bg-gray-700 p-3 rounded-lg border border-green-500/50">
-                    <p class="font-semibold text-green-400 mb-1">Positive Phrases:</p>
-                    <ul id="positiveKeywordsList" class="list-disc list-inside text-gray-300 text-sm">
-                        </ul>
-                </div>
-                
-                <div class="bg-gray-700 p-3 rounded-lg border border-red-500/50">
-                    <p class="font-semibold text-red-400 mb-1">Negative Phrases:</p>
-                    <ul id="negativeKeywordsList" class="list-disc list-inside text-gray-300 text-sm">
-                        </ul>
-                </div>
-            </div>
-            <p id="commentsAnalyzed" class="text-sm text-gray-400 mt-4"></p>
-        </div>
-    </div>
-</body>
-</html>""")
-
-    # Saves the JavaScript content to the static folder
-    with open('static/script.js', 'w') as f:
-        f.write("""document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('urlInput').addEventListener('keyup', (event) => {
-        if (event.key === 'Enter') {
-            analyzeUrl();
-        }
-    });
-});
-
-async function analyzeUrl() {
-    const urlInput = document.getElementById('urlInput').value.trim();
-    const analyzeButton = document.getElementById('analyzeButton');
-    const loadingMessage = document.getElementById('loadingMessage');
-    const resultBox = document.getElementById('resultBox');
-    const errorBox = document.getElementById('errorBox');
-    const loadingText = document.getElementById('loadingText');
-
-    resultBox.classList.add('hidden');
-    errorBox.classList.add('hidden');
-    loadingMessage.classList.remove('hidden');
-    
-    analyzeButton.disabled = true;
-
-    const urlPattern = /^(http|https):\\/\\/[^ "]+$/;
-    if (!urlInput) {
-        showError("Please enter a URL to analyze.");
-        return;
-    }
-    if (!urlPattern.test(urlInput)) {
-        showError("Invalid URL format. Please enter a full URL starting with http:// or https://.");
-        return;
-    }
-
-    try {
-        loadingText.textContent = "Sending URL to server...";
-
-        const response = await fetch('/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: urlInput })
-        });
-
-        if (!response.ok) {
-            throw new Error(`Server returned status: ${response.status}`);
-        }
-
-        loadingText.textContent = "Analyzing comments...";
-
-        const result = await response.json();
-
-        loadingMessage.classList.add('hidden');
-        analyzeButton.disabled = false;
-
-        if (result.error) {
-            showError(result.error);
-        } else {
-            const sentiment = result.sentiment;
-            const positive = result.positive;
-            const negative = result.negative;
-            const commentCount = result.comment_count;
-            const positiveKeywords = result.positive_keywords; 
-            const negativeKeywords = result.negative_keywords; 
-
-            const sentimentText = document.getElementById('overallSentiment');
-            const positivePercentage = document.getElementById('positivePercentage');
-            const negativePercentage = document.getElementById('negativePercentage');
-            const positiveBar = document.getElementById('positiveBar');
-            const negativeBar = document.getElementById('negativeBar');
-            const commentsAnalyzed = document.getElementById('commentsAnalyzed');
-
-            sentimentText.textContent = `Overall Sentiment: ${sentiment}`;
-            positivePercentage.textContent = `Positive: ${positive}%`;
-            negativePercentage.textContent = `Negative: ${negative}%`;
-            commentsAnalyzed.textContent = `Analyzed ${commentCount} comments.`;
-
-            positiveBar.style.width = `${positive}%`;
-            negativeBar.style.width = `${negative}%`;
-
-            positiveBar.style.float = 'left';
-            negativeBar.style.float = 'right';
-
-            // Populate Keyword Lists (Proof Section)
-            const posList = document.getElementById('positiveKeywordsList');
-            const negList = document.getElementById('negativeKeywordsList');
-
-            posList.innerHTML = positiveKeywords.map(word => `<li>${word}</li>`).join('') || '<li>None found</li>';
-            negList.innerHTML = negativeKeywords.map(word => `<li>${word}</li>`).join('') || '<li>None found</li>';
-
-            if (sentiment === 'Positive') {
-                resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-positive';
-            } else if (sentiment === 'Negative') {
-                resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-negative';
-            } else {
-                resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-neutral';
-            }
-            resultBox.classList.remove('hidden');
-        }
-
-    } catch (error) {
-        loadingMessage.classList.add('hidden');
-        analyzeButton.disabled = false;
-        console.error("Fetch error:", error);
-        showError("A connection error occurred. Ensure the Flask server is running and the URL is correct.");
-    }
-}
-
-function showError(message) {
-    const errorBox = document.getElementById('errorBox');
-    const errorMessage = document.getElementById('errorMessage');
-    const analyzeButton = document.getElementById('analyzeButton');
-    const loadingMessage = document.getElementById('loadingMessage');
-    const resultBox = document.getElementById('resultBox');
-
-    loadingMessage.classList.add('hidden');
-    resultBox.classList.add('hidden');
-    analyzeButton.disabled = false;
-    
-    errorMessage.textContent = message;
-    errorBox.classList.remove('hidden');
-}""")
-    
-    # Run the Flask application
     app.run(debug=True)

@@ -2,76 +2,158 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time CogniSense</title>
+    <title>CogniSense | Studio v2.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0d1117; color: #c9d1d9; }
-        .container { max-width: 600px; }
-        #resultBox { transition: background-color 0.5s ease-in-out, transform 0.3s ease-in-out; }
-        #resultBox:hover { transform: translateY(-5px); }
-        .result-positive { background-color: #235532; color: #2ecc71; }
-        .result-negative { background-color: #552323; color: #e74c3c; }
-        .result-neutral { background-color: #313338; color: #f1c40f; }
-        #loadingSpinner { border-top-color: #3498db; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
-        @-webkit-keyframes spinner { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
-        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .percentage-bar { transition: width 1s ease-in-out; }
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;900&display=swap');
+        body { background: #f8fafc; font-family: 'Outfit', sans-serif; }
+        .glass { background: white; border-radius: 28px; border: 1px solid #e2e8f0; }
+        .neg-block { background: #fff1f2 !important; border: 1px solid #fecaca !important; }
+        .blur-txt { filter: blur(14px); opacity: 0.1; user-select: none; pointer-events: none; }
+        .btn-press:active { transform: scale(0.96); }
     </style>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
-    <div class="container bg-gray-800 p-8 rounded-xl shadow-lg text-center">
-        <h1 class="text-4xl font-bold mb-2 text-white">Real-time YouTube Sentiment Analyzer </h1>
-        <p class="text-sm text-gray-400 mb-6">Fetches and analyzes the latest public comments from a YouTube video.</p>
+<body class="p-6 md:p-12">
 
-        <div class="mb-4">
-            <input type="text" id="urlInput" class="w-full p-3 rounded-lg bg-gray-900 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Paste a YouTube video URL (e.g., youtube.com/watch?v=...)">
-        </div>
-
-        <button id="analyzeButton" onclick="analyzeUrl()" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-            Analyze URL
-        </button>
-
-        <div id="loadingMessage" class="hidden text-center mt-4">
-            <div id="loadingSpinner" class="w-8 h-8 border-4 border-gray-600 border-solid rounded-full inline-block"></div>
-            <p id="loadingText" class="mt-2 text-gray-400">Connecting to server...</p>
-        </div>
-
-        <div id="errorBox" class="hidden mt-6 bg-red-800 bg-opacity-30 p-4 rounded-lg border border-red-700 text-red-400">
-            <p id="errorMessage" class="font-bold">An error occurred. Please check the server status.</p>
-        </div>
-        
-        <div id="resultBox" class="hidden mt-6 p-6 rounded-xl border border-gray-700 text-center">
-            <h2 class="text-2xl font-bold mb-2 text-white">Analysis Result</h2>
-            <p id="overallSentiment" class="text-xl font-bold mb-4">Overall Sentiment: </p>
-            
-            <div class="flex justify-between text-sm font-semibold mb-2">
-                <span id="positivePercentage" class="text-green-400"></span>
-                <span id="negativePercentage" class="text-red-400"></span>
+    <div id="authModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[200] flex items-center justify-center hidden">
+        <div class="glass p-10 max-w-sm w-full text-center shadow-2xl">
+            <h2 class="text-xl font-black mb-4 uppercase italic tracking-tighter">Security Shield</h2>
+            <div id="otpDisplay" class="hidden p-4 mb-6 rounded-2xl bg-cyan-50 border border-cyan-100">
+                <p class="text-[10px] font-black text-cyan-600 uppercase mb-1">Gmail Code</p>
+                <p id="otpVal" class="text-2xl font-black text-cyan-700 tracking-widest"></p>
             </div>
-            <div class="w-full h-4 rounded-full bg-gray-600 overflow-hidden mb-4">
-                <div id="positiveBar" class="h-full bg-green-500 float-left rounded-full percentage-bar"></div>
-                <div id="negativeBar" class="h-full bg-red-500 float-left rounded-full percentage-bar"></div>
+            <div id="emailStep">
+                <input type="email" id="uEmail" class="w-full bg-slate-50 border-0 rounded-2xl px-5 py-4 mb-4 outline-none text-sm" placeholder="example@gmail.com">
+                <button onclick="reqOTP()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl btn-press uppercase text-xs">Verify Gmail</button>
             </div>
-
-            <h3 class="text-lg font-bold mt-6 mb-2 text-white">Top Sentiment Keywords (Proof)</h3>
-            <div class="grid grid-cols-2 gap-4 text-left">
-                <div class="bg-gray-700 p-3 rounded-lg border border-green-500/50">
-                    <p class="font-semibold text-green-400 mb-1">Positive Phrases:</p>
-                    <ul id="positiveKeywordsList" class="list-disc list-inside text-gray-300 text-sm">
-                        </ul>
-                </div>
-                
-                <div class="bg-gray-700 p-3 rounded-lg border border-red-500/50">
-                    <p class="font-semibold text-red-400 mb-1">Negative Phrases:</p>
-                    <ul id="negativeKeywordsList" class="list-disc list-inside text-gray-300 text-sm">
-                        </ul>
-                </div>
+            <div id="otpStep" class="hidden">
+                <input type="text" id="cIn" maxlength="4" class="w-full bg-blue-50 border-0 rounded-2xl px-5 py-4 mb-4 outline-none text-center text-xl font-black" placeholder="0000">
+                <button onclick="vOTP()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl btn-press uppercase text-xs">Confirm Access</button>
             </div>
-            <p id="commentsAnalyzed" class="text-sm text-gray-400 mt-4"></p>
+            <button onclick="closeAuth()" class="mt-4 text-[10px] font-bold text-slate-400 uppercase">Abort</button>
         </div>
     </div>
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        <header class="glass p-6 flex justify-between items-center border-b-4 border-blue-600">
+            <div>
+                <h1 class="text-2xl font-black uppercase tracking-tighter italic text-slate-900">CogniSense Studio</h1>
+                <p class="text-[10px] font-bold text-blue-500">MRINAL DASHORA | 24BCON1413</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <button id="inBtn" onclick="showAuth()" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase btn-press">Sign In</button>
+                <div id="pnl" class="hidden flex items-center gap-4">
+                    <div class="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 text-[10px] font-black text-emerald-600 uppercase" id="uHndl"></div>
+                    <button onclick="logOut()" class="text-rose-500 font-bold text-[10px] uppercase hover:underline">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <aside class="lg:col-span-4 space-y-6">
+                <div class="glass p-8 shadow-sm">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Video Source</label>
+                    <input type="text" id="urlIn" class="w-full bg-slate-50 border-0 rounded-xl px-5 py-4 mb-4 outline-none text-sm border-2 border-transparent focus:border-blue-500" placeholder="Paste YouTube link...">
+                    <button onclick="getM()" id="cBtn" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl btn-press text-[10px] uppercase">Connect</button>
+                </div>
+                <div id="vCard" class="hidden glass p-4 shadow-sm animate-in fade-in">
+                    <img id="vThmb" class="rounded-2xl w-full mb-4 shadow-sm" src="">
+                    <h3 id="vTtl" class="font-bold text-[10px] text-slate-700 leading-tight uppercase px-2"></h3>
+                </div>
+                <div id="dCtrl" class="hidden glass p-8 border-2 border-blue-50">
+                    <label class="block text-[10px] font-bold text-blue-500 uppercase mb-2">Analysis Depth</label>
+                    <input type="number" id="dNum" class="w-full bg-blue-50 border-0 rounded-xl px-5 py-4 mb-4 outline-none font-black text-sm">
+                    <button onclick="exec()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl btn-press text-[10px] uppercase">Analyze</button>
+                </div>
+            </aside>
+
+            <main class="lg:col-span-8">
+                <div id="loadUI" class="hidden glass p-32 text-center text-[10px] font-black uppercase text-slate-400 italic animate-pulse tracking-widest">Mining Sentiment...</div>
+                <div id="dataUI" class="hidden space-y-6">
+                    <div class="glass p-10 shadow-sm relative overflow-hidden">
+                        <div class="flex justify-between mb-4 text-[10px] font-black uppercase tracking-widest"><span class="text-blue-600" id="pT"></span><span class="text-rose-600" id="nT"></span></div>
+                        <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex"><div id="pB" class="h-full bg-blue-600 transition-all duration-1000"></div><div id="nB" class="h-full bg-rose-500"></div></div>
+                    </div>
+                    <div id="fd" class="space-y-3 h-[520px] overflow-y-auto pr-4"></div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        let LOGGED = false, DATA = null;
+
+        // Invisible Enter Key Support
+        document.getElementById('urlIn').addEventListener('keypress', (e) => { if(e.key === 'Enter') getM(); });
+        document.getElementById('uEmail').addEventListener('keypress', (e) => { if(e.key === 'Enter') reqOTP(); });
+        document.getElementById('cIn').addEventListener('keypress', (e) => { if(e.key === 'Enter') vOTP(); });
+        document.getElementById('dNum').addEventListener('keypress', (e) => { if(e.key === 'Enter') exec(); });
+
+        function showAuth() { document.getElementById('authModal').classList.remove('hidden'); }
+        function closeAuth() { document.getElementById('authModal').classList.add('hidden'); }
+        function logOut() { LOGGED = false; location.reload(); }
+
+        async function reqOTP() {
+            const e = document.getElementById('uEmail').value;
+            const res = await fetch('/request_otp', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: e}) });
+            const d = await res.json();
+            if(d.error) return alert(d.error);
+            document.getElementById('otpVal').textContent = d.code;
+            document.getElementById('otpDisplay').classList.remove('hidden');
+            document.getElementById('emailStep').classList.add('hidden');
+            document.getElementById('otpStep').classList.remove('hidden');
+            document.getElementById('cIn').focus();
+        }
+
+        async function vOTP() {
+            const c = document.getElementById('cIn').value;
+            const e = document.getElementById('uEmail').value;
+            if(c !== document.getElementById('otpVal').textContent) return alert("Invalid Verification");
+            LOGGED = true;
+            document.getElementById('uHndl').textContent = e.split('@')[0];
+            document.getElementById('inBtn').classList.add('hidden');
+            document.getElementById('pnl').classList.remove('hidden');
+            closeAuth();
+            if(DATA) render(DATA);
+        }
+
+        async function getM() {
+            const u = document.getElementById('urlIn').value.trim();
+            const res = await fetch('/get_meta', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u}) });
+            const d = await res.json();
+            document.getElementById('vThmb').src = d.thumb;
+            document.getElementById('vTtl').textContent = d.title;
+            document.getElementById('dNum').value = d.total;
+            document.getElementById('vCard').classList.remove('hidden');
+            document.getElementById('dCtrl').classList.remove('hidden');
+            document.getElementById('dNum').focus();
+        }
+
+        async function exec() {
+            const u = document.getElementById('urlIn').value.trim(), l = document.getElementById('dNum').value;
+            document.getElementById('loadUI').classList.remove('hidden');
+            document.getElementById('dataUI').classList.add('hidden');
+            const res = await fetch('/analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u, limit: l}) });
+            DATA = await res.json();
+            render(DATA);
+        }
+
+        function render(d) {
+            document.getElementById('pT').textContent = d.positive + "%";
+            document.getElementById('nT').textContent = d.negative + "%";
+            document.getElementById('pB').style.width = d.positive + "%";
+            document.getElementById('nB').style.width = d.negative + "%";
+            document.getElementById('fd').innerHTML = d.stream.map(c => `
+                <div class="flex gap-4 p-5 rounded-3xl bg-white border border-slate-100 ${c.is_neg ? 'neg-block' : ''} shadow-sm transition-all duration-500">
+                    <img src="${c.avatar}" class="w-10 h-10 rounded-full border-2 border-white">
+                    <div>
+                        <p class="text-[10px] font-black text-slate-800 uppercase tracking-tight">${c.author} ${c.explicit && !LOGGED ? '<span class="text-rose-600 ml-2 animate-pulse italic">[RESTRICTED ACCESS]</span>' : ''}</p>
+                        <p class="text-xs text-slate-600 leading-relaxed mt-1 ${c.explicit && !LOGGED ? 'blur-txt' : ''}">${c.html}</p>
+                    </div>
+                </div>`).join('');
+            document.getElementById('loadUI').classList.add('hidden');
+            document.getElementById('dataUI').classList.remove('hidden');
+        }
+    </script>
 </body>
 </html>

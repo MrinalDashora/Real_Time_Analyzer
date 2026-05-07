@@ -1,119 +1,75 @@
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('urlInput').addEventListener('keyup', (event) => {
-        if (event.key === 'Enter') {
-            analyzeUrl();
-        }
-    });
-});
+/**
+ * CogniSense Neural Engine v2.0
+ * Developer: Mrinal Dashora | Roll No: 24BCON1413
+ */
 
 async function analyzeUrl() {
-    const urlInput = document.getElementById('urlInput').value.trim();
-    const analyzeButton = document.getElementById('analyzeButton');
-    const loadingMessage = document.getElementById('loadingMessage');
-    const resultBox = document.getElementById('resultBox');
-    const errorBox = document.getElementById('errorBox');
-    const loadingText = document.getElementById('loadingText');
-
-    resultBox.classList.add('hidden');
-    errorBox.classList.add('hidden');
-    loadingMessage.classList.remove('hidden');
+    const url = document.getElementById('urlInput').value.trim();
+    if(!url) return alert("System Warning: Please provide a valid YouTube URL Uplink.");
     
-    analyzeButton.disabled = true;
-
-    const urlPattern = /^(http|https):\/\/[^ "]+$/;
-    if (!urlInput) {
-        showError("Please enter a URL to analyze.");
-        return;
-    }
-    if (!urlPattern.test(urlInput)) {
-        showError("Invalid URL format. Please enter a full URL starting with http:// or https://.");
-        return;
-    }
+    const btn = document.getElementById('analyzeButton');
+    const idle = document.getElementById('idleState');
+    const load = document.getElementById('loadingMessage');
+    const res = document.getElementById('resultBox');
+    
+    // UI Phase Transition
+    res.classList.add('hidden');
+    idle.classList.add('hidden');
+    load.classList.remove('hidden');
+    btn.disabled = true;
+    btn.style.opacity = "0.5";
 
     try {
-        loadingText.textContent = "Sending URL to server...";
-
-        const response = await fetch('/analyze', {
+        const r = await fetch('/analyze', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: urlInput })
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url: url})
         });
-
-        if (!response.ok) {
-            throw new Error(`Server returned status: ${response.status}`);
+        const data = await r.json();
+        
+        if(data.error) { 
+            alert("Analysis Error: " + data.error); 
+            load.classList.add('hidden'); 
+            idle.classList.remove('hidden');
+            btn.disabled = false; 
+            btn.style.opacity = "1";
+            return; 
         }
 
-        loadingText.textContent = "Analyzing comments...";
+        // Mapping Intelligence Data
+        document.getElementById('overallSentiment').textContent = data.sentiment;
+        document.getElementById('commentsAnalyzed').textContent = data.comment_count.toLocaleString();
+        document.getElementById('posP').textContent = data.positive + "%";
+        document.getElementById('negP').textContent = data.negative + "%";
+        
+        // Progressive Bar Loading
+        document.getElementById('positiveBar').style.width = "0%";
+        document.getElementById('negativeBar').style.width = "0%";
+        setTimeout(() => {
+            document.getElementById('positiveBar').style.width = data.positive + "%";
+            document.getElementById('negativeBar').style.width = data.negative + "%";
+        }, 150);
 
-        const result = await response.json();
+        // Neural Tag Rendering
+        const renderTags = (id, words, colorClass) => {
+            document.getElementById(id).innerHTML = words.map(w => `
+                <li class="px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 text-[10px] font-mono font-bold tracking-tight flex items-center gap-2 group hover:border-cyan-500/50 transition-all">
+                    <span class="w-1 h-1 rounded-full ${colorClass}"></span>
+                    ${w.toUpperCase()}
+                </li>
+            `).join('');
+        };
+        renderTags('posList', data.positive_keywords, 'bg-cyan-400');
+        renderTags('negList', data.negative_keywords, 'bg-rose-500');
 
-        loadingMessage.classList.add('hidden');
-        analyzeButton.disabled = false;
-
-        if (result.error) {
-            showError(result.error);
-        } else {
-            const sentiment = result.sentiment;
-            const positive = result.positive;
-            const negative = result.negative;
-            const commentCount = result.comment_count;
-            const positiveKeywords = result.positive_keywords; 
-            const negativeKeywords = result.negative_keywords; 
-
-            const sentimentText = document.getElementById('overallSentiment');
-            const positivePercentage = document.getElementById('positivePercentage');
-            const negativePercentage = document.getElementById('negativePercentage');
-            const positiveBar = document.getElementById('positiveBar');
-            const negativeBar = document.getElementById('negativeBar');
-            const commentsAnalyzed = document.getElementById('commentsAnalyzed');
-
-            sentimentText.textContent = `Overall Sentiment: ${sentiment}`;
-            positivePercentage.textContent = `Positive: ${positive}%`;
-            negativePercentage.textContent = `Negative: ${negative}%`;
-            commentsAnalyzed.textContent = `Analyzed ${commentCount} comments.`;
-
-            positiveBar.style.width = `${positive}%`;
-            negativeBar.style.width = `${negative}%`;
-
-            positiveBar.style.float = 'left';
-            negativeBar.style.float = 'right';
-
-            // Populate Keyword Lists (Proof Section)
-            const posList = document.getElementById('positiveKeywordsList');
-            const negList = document.getElementById('negativeKeywordsList');
-
-            posList.innerHTML = positiveKeywords.map(word => `<li>${word}</li>`).join('') || '<li>None found</li>';
-            negList.innerHTML = negativeKeywords.map(word => `<li>${word}</li>`).join('') || '<li>None found</li>';
-
-            if (sentiment === 'Positive') {
-                resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-positive';
-            } else if (sentiment === 'Negative') {
-                resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-negative';
-            } else {
-                resultBox.className = 'mt-6 p-6 rounded-xl border border-gray-700 text-center result-neutral';
-            }
-            resultBox.classList.remove('hidden');
-        }
-
-    } catch (error) {
-        loadingMessage.classList.add('hidden');
-        analyzeButton.disabled = false;
-        console.error("Fetch error:", error);
-        showError("A connection error occurred. Ensure the Flask server is running and the URL is correct.");
+        load.classList.add('hidden');
+        res.classList.remove('hidden');
+        
+    } catch(e) { 
+        console.error("Critical System Failure:", e); 
+        alert("Fatal System Exception. Check console.");
+    } finally {
+        btn.disabled = false;
+        btn.style.opacity = "1";
     }
-}
-
-function showError(message) {
-    const errorBox = document.getElementById('errorBox');
-    const errorMessage = document.getElementById('errorMessage');
-    const analyzeButton = document.getElementById('analyzeButton');
-    const loadingMessage = document.getElementById('loadingMessage');
-    const resultBox = document.getElementById('resultBox');
-
-    loadingMessage.classList.add('hidden');
-    resultBox.classList.add('hidden');
-    analyzeButton.disabled = false;
-    
-    errorMessage.textContent = message;
-    errorBox.classList.remove('hidden');
 }
