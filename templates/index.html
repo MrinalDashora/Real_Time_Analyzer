@@ -32,119 +32,98 @@
         <div class="bg-white p-8 shadow-sm border-l-4 border-blue-600 rounded-r-xl">
             <h2 class="text-lg font-black uppercase text-slate-900 mb-2 tracking-tight italic">System Overview: Real-Time CogniSense</h2>
             <p class="text-sm text-slate-600 leading-relaxed font-medium">
-                An advanced analytical engine designed to instantly evaluate public sentiment. By connecting directly to a video's data stream, it extracts raw comments, filters them through a custom natural language processor, and visualizes the precise ratio of positive engagement to critical feedback.
+                An advanced analytical engine designed to instantly evaluate public sentiment. By connecting directly to a video's data stream, it extracts raw comments and visualizes the precise ratio of positive engagement to critical feedback.
             </p>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
             <div class="lg:col-span-5 space-y-6">
-                
                 <div id="authPanel" class="glass p-8 shadow-sm border border-slate-100">
                     <h3 class="text-sm font-black text-blue-600 mb-4 uppercase tracking-widest">Human Validation</h3>
                     <div class="space-y-4">
-                        <button onclick="generateOTP()" class="w-full bg-[#1e293b] hover:bg-slate-900 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase tracking-wide shadow-md">1. INITIALIZE SECURITY CHECK</button>
+                        <button onclick="generateOTP()" class="w-full bg-[#1e293b] hover:bg-slate-900 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase tracking-wide">1. INITIALIZE SECURITY CHECK</button>
                         <div id="otpDisplay" class="hidden text-center p-3 bg-slate-100 rounded-xl font-mono text-lg font-bold tracking-widest text-slate-700"></div>
-                        <input type="text" id="otpInput" placeholder="ENTER CAPTCHA CODE" class="w-full input-glass p-4 text-center font-black uppercase text-slate-700 placeholder-slate-400 hidden">
-                        <button id="verifyBtn" onclick="verifyOTP()" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase tracking-wide shadow-md">2. VERIFY HUMAN IDENTITY</button>
+                        <input type="text" id="otpInput" placeholder="ENTER CAPTCHA CODE" class="w-full input-glass p-4 text-center font-black uppercase hidden">
+                        <button id="verifyBtn" onclick="verifyOTP()" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-all text-sm uppercase">2. VERIFY HUMAN IDENTITY</button>
                     </div>
                 </div>
 
                 <div id="controlPanel" class="hidden glass p-8 shadow-sm border border-slate-100 space-y-6">
                     <div>
                         <label class="block text-xs font-black text-blue-600 mb-2 uppercase tracking-widest">Video Source URL</label>
-                        <input type="text" id="videoUrl" placeholder="https://youtube.com/watch?v=..." class="w-full input-glass p-4 text-sm font-medium text-slate-700">
+                        <input type="text" id="videoUrl" oninput="fetchCommentCount()" placeholder="https://youtube.com/watch?v=..." class="w-full input-glass p-4 text-sm font-medium text-slate-700">
                     </div>
-                    
                     <div>
                         <label class="block text-xs font-black text-blue-600 mb-2 uppercase tracking-widest">No. of Comments</label>
-                        <input type="number" id="depth" placeholder="e.g. 50" min="1" max="2000" class="w-full input-glass p-4 text-xl font-black text-slate-900">
+                        <input type="number" id="depth" placeholder="e.g. 50" class="w-full input-glass p-4 text-xl font-black text-slate-900">
                     </div>
-
-                    <button onclick="startAnalysis()" id="analyzeBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-4 rounded-xl transition-all uppercase tracking-widest shadow-lg shadow-blue-500/30">
-                        Analyze
-                    </button>
+                    <button onclick="startAnalysis()" id="analyzeBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-4 rounded-xl transition-all uppercase tracking-widest">Analyze</button>
                 </div>
-
-                <div id="videoInfo" class="hidden glass p-6 shadow-sm border border-slate-100">
-                    <img id="thumb" src="" alt="Thumbnail" class="w-full rounded-lg mb-4 shadow-sm">
-                    <h3 id="vidTitle" class="font-bold text-slate-800 leading-tight text-sm"></h3>
-                </div>
-
             </div>
 
             <div class="lg:col-span-7">
-                
-                <div id="dataUI" class="hidden space-y-6">
-                    
+                <div id="dataUI" class="space-y-6">
                     <div class="glass p-8 shadow-sm border border-slate-100 relative overflow-hidden">
                         <div class="flex justify-between mb-3 text-sm font-black uppercase tracking-widest">
-                            <span class="text-blue-600" id="pT">0.0%</span>
-                            <span class="text-rose-600" id="nT">0.0%</span>
+                            <span class="text-blue-600" id="pT">UNDEFINED%</span>
+                            <span class="text-rose-600" id="nT">UNDEFINED%</span>
                         </div>
-                        
                         <div class="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex mb-3">
                             <div id="pB" class="h-full bg-blue-600 transition-all duration-1000" style="width: 0%"></div>
                             <div id="nB" class="h-full bg-rose-500 transition-all duration-1000" style="width: 0%"></div>
                         </div>
-                        
-                        <div class="flex justify-between text-[10px] font-bold uppercase tracking-wider">
-                            <span class="text-blue-500">Positive Comments</span>
-                            <span class="text-rose-400">Negative Comments</span>
-                        </div>
                     </div>
-                    
                     <div class="glass p-6 shadow-sm border border-slate-100">
-                        <h3 class="text-xs font-black text-slate-400 mb-4 uppercase tracking-widest border-b border-slate-100 pb-2">Live Data Stream</h3>
+                        <h3 class="text-xs font-black text-slate-400 mb-4 uppercase tracking-widest border-b pb-2">Live Data Stream</h3>
                         <div id="fd" class="space-y-3 h-[450px] overflow-y-auto pr-2"></div>
                     </div>
-
                 </div>
             </div>
-
         </div>
     </div>
 
     <script>
-        console.log("Terminal Output - Mrinal Dashora - Roll Number: 24BCON1413");
-
         let currentOTP = "";
+
+        async function fetchCommentCount() {
+            const url = document.getElementById('videoUrl').value;
+            const countInput = document.getElementById('depth');
+            if (!url) { countInput.value = ""; return; }
+
+            try {
+                const response = await fetch('/get_metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                const data = await response.json();
+                if (data.commentCount) { countInput.value = data.commentCount; }
+            } catch (err) { console.log("Validating URL..."); }
+        }
 
         function generateOTP() {
             currentOTP = Math.floor(100000 + Math.random() * 900000).toString();
-            const display = document.getElementById('otpDisplay');
-            display.innerText = currentOTP;
-            display.classList.remove('hidden');
+            document.getElementById('otpDisplay').innerText = currentOTP;
+            document.getElementById('otpDisplay').classList.remove('hidden');
             document.getElementById('otpInput').classList.remove('hidden');
             document.getElementById('verifyBtn').classList.remove('hidden');
         }
 
         function verifyOTP() {
-            const input = document.getElementById('otpInput').value;
-            if(input === currentOTP) {
+            if(document.getElementById('otpInput').value === currentOTP) {
                 document.getElementById('authPanel').classList.add('hidden');
                 document.getElementById('controlPanel').classList.remove('hidden');
-                
-                const status = document.getElementById('authStatus');
-                status.innerText = "Status: Verified Human";
-                status.classList.replace('bg-slate-200', 'bg-emerald-100');
-                status.classList.replace('text-slate-500', 'text-emerald-700');
-            } else {
-                alert("Security check failed. Please enter the correct code.");
-            }
+                document.getElementById('authStatus').innerText = "Status: Verified Human";
+            } else { alert("Verification Failed."); }
         }
 
         async function startAnalysis() {
             const url = document.getElementById('videoUrl').value;
-            const depth = document.getElementById('depth').value || 50; // Default to 50 if empty on submit
-            const btn = document.getElementById('analyzeBtn');
-            
-            if(!url) { alert("Please enter a Video URL"); return; }
+            const depth = document.getElementById('depth').value;
+            if(!url) return;
 
+            const btn = document.getElementById('analyzeBtn');
             btn.innerText = "ANALYZING...";
-            btn.classList.add('opacity-50', 'cursor-not-allowed');
-            document.getElementById('dataUI').classList.remove('hidden');
-            document.getElementById('fd').innerHTML = '';
             
             try {
                 const response = await fetch('/analyze', {
@@ -152,47 +131,23 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: url, max_results: parseInt(depth) })
                 });
-                
                 const data = await response.json();
                 
-                if(data.error) {
-                    alert("Error: " + data.error);
-                    resetBtn(btn);
-                    return;
-                }
-
-                document.getElementById('videoInfo').classList.remove('hidden');
-                document.getElementById('thumb').src = data.thumbnail;
-                document.getElementById('vidTitle').innerText = data.title;
-
                 document.getElementById('pT').innerText = data.positive_percentage + '%';
                 document.getElementById('nT').innerText = data.negative_percentage + '%';
                 document.getElementById('pB').style.width = data.positive_percentage + '%';
                 document.getElementById('nB').style.width = data.negative_percentage + '%';
 
                 const feed = document.getElementById('fd');
+                feed.innerHTML = '';
                 data.comments.forEach(c => {
                     const el = document.createElement('div');
-                    if(c.sentiment === 'Positive') {
-                        el.className = 'p-3 bg-blue-50 border-l-2 border-blue-500 text-sm text-slate-700 rounded-r-md';
-                    } else {
-                        el.className = 'p-3 bg-rose-50 border-l-2 border-rose-500 text-sm text-slate-700 rounded-r-md';
-                    }
+                    el.className = `p-3 text-sm rounded-md border-l-2 ${c.sentiment === 'Positive' ? 'bg-blue-50 border-blue-500' : 'bg-rose-50 border-rose-500'}`;
                     el.innerText = c.text;
                     feed.appendChild(el);
                 });
-
-            } catch (err) {
-                alert("Connection failed. Check console for details.");
-                console.error(err);
-            }
-            
-            resetBtn(btn);
-        }
-
-        function resetBtn(btn) {
+            } catch (err) { console.error(err); }
             btn.innerText = "ANALYZE";
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
     </script>
 </body>

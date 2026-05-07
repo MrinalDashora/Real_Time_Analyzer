@@ -1,104 +1,105 @@
 import os
-import re
-import random
-from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify
 from googleapiclient.discovery import build
-from words import positive_words, negative_words, explicit_words, intensifiers, negations
+from dotenv import load_dotenv
+import re
 
-load_dotenv() 
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+load_dotenv()
 
 app = Flask(__name__)
-active_otps = {}
 
-# --- ARCHITECT: MRINAL DASHORA | 24BCON1413 ---
+# Securely get API Key from Environment
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
 
-def analyze_and_highlight(text):
-    if not text: return None
-    words = text.split()
-    p_pts, n_pts = 0, 0
-    highlighted_words = []
-    is_explicit = any(re.sub(r'\W+', '', w.lower()) in explicit_words for w in words)
-
-    for i, word in enumerate(words):
-        clean = re.sub(r'\W+', '', word.lower())
-        is_negated = i > 0 and words[i-1].lower() in negations
-        weight = 2.0 if i > 0 and words[i-1].lower() in intensifiers else 1.0
-        
-        display = word
-        if clean in positive_words:
-            if is_negated: n_pts += weight; display = f'<b class="text-rose-600 underline">{word}</b>'
-            else: p_pts += weight; display = f'<b class="text-blue-600 underline">{word}</b>'
-        elif clean in negative_words:
-            if is_negated: p_pts += weight; display = f'<b class="text-blue-600 underline">{word}</b>'
-            else: n_pts += weight; display = f'<b class="text-rose-600 underline">{word}</b>'
-        highlighted_words.append(display)
-
-    return {"p": p_pts, "n": n_pts, "html": " ".join(highlighted_words), "explicit": is_explicit}
-
-def extract_id(url):
-    from urllib.parse import urlparse, parse_qs
-    v_id = parse_qs(urlparse(url).query).get('v')
-    if v_id: return v_id[0]
-    match = re.search(r'([a-zA-Z0-9_-]{11})', urlparse(url).path)
+def extract_video_id(url):
+    pattern = r'(?:v=|\/)([0-9A-Za-z_-]{11}).*'
+    match = re.search(pattern, url)
     return match.group(1) if match else None
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/request_otp', methods=['POST'])
-def request_otp():
-    data = request.get_json()
-    email = data.get('email', '')
-    if not re.match(r'^[a-zA-Z0-9._%+-]+@gmail\.com$', email):
-        return jsonify({"error": "Invalid Gmail format."})
-    otp = str(random.randint(1000, 9999))
-    active_otps[email] = otp
-    return jsonify({"success": True, "code": otp})
+@app.route('/get_metadata', methods=['POST'])
+def get_metadata():
+    data = request.json
+    video_url = data.get('url')
+    video_id = extract_video_id(video_url)
+    
+    if not video_id:
+        return jsonify({"error": "Invalid URL"}), 400
 
-@app.route('/get_meta', methods=['POST'])
-def get_meta():
-    data = request.get_json()
-    v_id = extract_id(data.get('url', ''))
-    if not v_id: return jsonify({"error": "Invalid URL"})
-    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-    v_resp = youtube.videos().list(part="snippet,statistics", id=v_id).execute()
-    item = v_resp['items'][0]
-    return jsonify({
-        "title": item['snippet']['title'],
-        "thumb": item['snippet']['thumbnails']['high']['url'],
-        "total": int(item['statistics'].get('commentCount', 0))
-    })
+    try:
+        request_api = youtube.videos().list(part="snippet,statistics", id=video_id)
+        response = request_api.execute()
+        
+        if not response['items']:
+            return jsonify({"error": "Video not found"}), 404
+            
+        stats = response['items'][0]['statistics']
+        snippet = response['items'][0]['snippet']
+        
+        return jsonify({
+            "commentCount": stats.get('commentCount', 0),
+            "title": snippet.get('title'),
+            "thumbnail": snippet['thumbnails']['high']['url']
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    data = request.get_json()
-    v_id, limit = extract_id(data.get('url', '')), int(data.get('limit', 100))
-    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-    comments_data, next_token = [], None
-    while len(comments_data) < limit:
-        res = youtube.commentThreads().list(part="snippet", videoId=v_id, maxResults=100, pageToken=next_token).execute()
-        for item in res.get("items", []):
-            snippet = item["snippet"]["topLevelComment"]["snippet"]
-            comments_data.append({"author": snippet["authorDisplayName"], "avatar": snippet["authorProfileImageUrl"], "text": snippet["textDisplay"]})
-        next_token = res.get('nextPageToken')
-        if not next_token: break
+    data = request.json
+    video_url = data.get('url')
+    max_results = data.get('max_results', 50)
+    video_id = extract_video_id(video_url)
 
-    stream, tp, tn = [], 0, 0
-    for c in comments_data:
-        analysis = analyze_and_highlight(c["text"])
-        if not analysis: continue
-        tp += analysis["p"]; tn += analysis["n"]
-        stream.append({"author": c["author"], "avatar": c["avatar"], "html": analysis["html"], "explicit": analysis["explicit"], "is_neg": analysis["n"] > analysis["p"]})
-    
-    weight = tp + tn
-    return jsonify({
-        "positive": round((tp/weight*100), 1) if weight > 0 else 50,
-        "negative": round((tn/weight*100), 1) if weight > 0 else 50,
-        "stream": stream
-    })
+    if not video_id:
+        return jsonify({"error": "Invalid YouTube URL"}), 400
 
-if __name__ == "__main__":
+    try:
+        # Fetch Video Metadata
+        video_response = youtube.videos().list(part="snippet", id=video_id).execute()
+        title = video_response['items'][0]['snippet']['title']
+        thumbnail = video_response['items'][0]['snippet']['thumbnails']['high']['url']
+
+        # Fetch Comments
+        comments = []
+        next_page_token = None
+        
+        while len(comments) < max_results:
+            request_api = youtube.commentThreads().list(
+                part="snippet",
+                videoId=video_id,
+                maxResults=min(100, max_results - len(comments)),
+                pageToken=next_page_token
+            )
+            response = request_api.execute()
+
+            for item in response['items']:
+                comment = item['snippet']['topLevelComment']['snippet']['textDisplay']
+                # Simple Sentiment Logic
+                pos_words = ['good', 'great', 'awesome', 'amazing', 'love', 'best', 'nice']
+                sentiment = 'Positive' if any(word in comment.lower() for word in pos_words) else 'Negative'
+                comments.append({'text': comment, 'sentiment': sentiment})
+
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token:
+                break
+
+        pos_count = sum(1 for c in comments if c.sentiment == 'Positive')
+        neg_count = len(comments) - pos_count
+        
+        return jsonify({
+            "title": title,
+            "thumbnail": thumbnail,
+            "comments": comments,
+            "positive_percentage": round((pos_count/len(comments))*100, 1) if comments else 0,
+            "negative_percentage": round((neg_count/len(comments))*100, 1) if comments else 0
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
     app.run(debug=True)
