@@ -3,143 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CogniSense Studio</title>
+    <title>CogniSense Studio | Real-Time Analyzer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .glass { background: white; border-radius: 1rem; border: 1px solid #e2e8f0; }
-        .input-glass { background: #f1f5f9; border-radius: 0.75rem; border: none; outline: none; }
-        .input-glass:focus { ring: 2px solid #2563eb; }
+        body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
+        .glass-panel { background: white; border: 1px solid #e5e7eb; border-radius: 1.25rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+        .input-field { background: #f3f4f6; border-radius: 0.75rem; border: 2px solid transparent; transition: all 0.2s; outline: none; }
+        .input-field:focus { border-color: #2563eb; background: white; }
         ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
     </style>
 </head>
-<body class="p-6 md:p-10">
+<body class="p-6 md:p-12">
 
-    <div class="max-w-6xl mx-auto space-y-8">
-        <div class="bg-white p-8 border-l-4 border-blue-600 rounded-r-xl shadow-sm">
-            <h2 class="text-lg font-black uppercase italic text-slate-900 mb-2">System Overview: Real-Time CogniSense</h2>
-            <p class="text-sm text-slate-600 leading-relaxed font-medium">
+    <div class="max-w-7xl mx-auto space-y-10">
+        
+        <div class="bg-white p-10 border-l-[6px] border-blue-600 rounded-r-2xl shadow-sm">
+            <h2 class="text-xl font-black uppercase italic text-slate-900 mb-3 tracking-tight">System Overview: Real-Time CogniSense</h2>
+            <p class="text-base text-slate-600 leading-relaxed font-medium max-w-4xl">
                 An advanced analytical engine designed to instantly evaluate public sentiment. By connecting directly to a video's data stream, it extracts raw comments and visualizes the precise ratio of positive engagement to critical feedback.
             </p>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div class="lg:col-span-5 space-y-6">
-                <div id="authPanel" class="glass p-8">
-                    <h3 class="text-xs font-black text-blue-600 mb-4 uppercase tracking-widest">Human Validation</h3>
-                    <div class="space-y-4">
-                        <button onclick="genOTP()" class="w-full bg-[#0f172a] text-white font-bold py-4 rounded-xl uppercase text-sm tracking-wide shadow-lg hover:bg-slate-800 transition-all">1. Initialize Security Check</button>
-                        <div id="otpBox" class="hidden text-center p-3 bg-slate-100 rounded-xl font-mono text-xl font-bold text-slate-700 tracking-widest"></div>
-                        <input type="text" id="otpIn" placeholder="ENTER CAPTCHA" class="w-full input-glass p-4 text-center font-black hidden">
-                        <button id="vBtn" onclick="verify()" class="hidden w-full bg-blue-600 text-white font-bold py-4 rounded-xl uppercase text-sm">2. Verify Identity</button>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            
+            <div class="lg:col-span-5 space-y-8">
+                
+                <div id="authSection" class="glass-panel p-10">
+                    <h3 class="text-xs font-black text-blue-600 mb-6 uppercase tracking-[0.2em]">Human Validation</h3>
+                    <div class="space-y-5">
+                        <button onclick="triggerSecurityCheck()" class="w-full bg-[#0f172a] hover:bg-slate-800 text-white font-black py-5 rounded-xl uppercase text-sm tracking-widest transition-all shadow-xl shadow-slate-200">
+                            1. Initialize Security Check
+                        </button>
+                        
+                        <div id="captchaBox" class="hidden text-center py-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl font-mono text-2xl font-black text-slate-700 tracking-[0.5em]"></div>
+                        
+                        <input type="text" id="captchaInput" placeholder="ENTER CAPTCHA CODE" class="hidden w-full input-field p-5 text-center font-black text-lg uppercase">
+                        
+                        <button id="confirmAuthBtn" onclick="processVerification()" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-xl uppercase text-sm tracking-widest shadow-lg shadow-blue-100">
+                            2. Verify Identity
+                        </button>
                     </div>
                 </div>
 
-                <div id="mainPanel" class="hidden glass p-8 space-y-6">
+                <div id="analyzerSection" class="hidden glass-panel p-10 space-y-8">
                     <div>
-                        <label class="block text-xs font-black text-blue-600 mb-2 uppercase tracking-widest">Video Source URL</label>
-                        <input type="text" id="url" oninput="getMeta()" placeholder="https://youtube.com/watch?v=..." class="w-full input-glass p-4 text-sm font-medium">
+                        <label class="block text-xs font-black text-blue-600 mb-3 uppercase tracking-widest">Video Source URL</label>
+                        <input type="text" id="targetUrl" oninput="autoDetectMetadata()" placeholder="https://youtube.com/watch?v=..." class="w-full input-field p-5 text-sm font-semibold text-slate-700">
                     </div>
+                    
                     <div>
-                        <label class="block text-xs font-black text-blue-600 mb-2 uppercase tracking-widest">No. of Comments</label>
-                        <input type="number" id="count" placeholder="e.g. 50" class="w-full input-glass p-4 text-xl font-black">
+                        <label class="block text-xs font-black text-blue-600 mb-3 uppercase tracking-widest">No. of Comments</label>
+                        <input type="number" id="commentDepth" placeholder="Awaiting URL..." class="w-full input-field p-5 text-2xl font-black text-slate-900">
                     </div>
-                    <button onclick="start()" id="go" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl uppercase tracking-widest shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all">Analyze</button>
+
+                    <button onclick="executeAnalysis()" id="runBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-xl uppercase tracking-[0.2em] shadow-2xl shadow-blue-200 transition-all active:scale-[0.98]">
+                        Analyze
+                    </button>
                 </div>
             </div>
 
-            <div class="lg:col-span-7 space-y-6">
-                <div class="glass p-8">
-                    <div class="flex justify-between mb-4 text-sm font-black uppercase tracking-widest">
-                        <span id="pLabel" class="text-blue-600">UNDEFINED%</span>
-                        <span id="nLabel" class="text-rose-600">UNDEFINED%</span>
+            <div class="lg:col-span-7 space-y-8">
+                
+                <div id="visualizerPanel" class="hidden glass-panel p-10">
+                    <div class="flex justify-between mb-5">
+                        <div class="flex flex-col">
+                            <span id="posLabel" class="text-2xl font-black text-blue-600 tracking-tighter">UNDEFINED%</span>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Positive Engagement</span>
+                        </div>
+                        <div class="flex flex-col items-end">
+                            <span id="negLabel" class="text-2xl font-black text-rose-600 tracking-tighter">UNDEFINED%</span>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Critical Feedback</span>
+                        </div>
                     </div>
-                    <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex">
-                        <div id="pFill" class="h-full bg-blue-600 transition-all duration-1000" style="width: 0%"></div>
-                        <div id="nFill" class="h-full bg-rose-500 transition-all duration-1000" style="width: 0%"></div>
+                    
+                    <div class="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+                        <div id="posBar" class="h-full bg-blue-600 transition-all duration-[1200ms] ease-out" style="width: 0%"></div>
+                        <div id="negBar" class="h-full bg-rose-500 transition-all duration-[1200ms] ease-out" style="width: 0%"></div>
                     </div>
                 </div>
 
-                <div class="glass p-6">
-                    <h3 class="text-[10px] font-black text-slate-400 mb-4 uppercase tracking-[0.2em] border-b pb-2">Live Data Stream</h3>
-                    <div id="feed" class="space-y-3 h-[420px] overflow-y-auto pr-2"></div>
+                <div class="glass-panel p-8">
+                    <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                        <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">Live Data Stream</h3>
+                        <div id="streamStatus" class="flex items-center gap-2">
+                            <div class="w-2 h-2 bg-slate-300 rounded-full animate-pulse"></div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Idle</span>
+                        </div>
+                    </div>
+                    <div id="commentFeed" class="space-y-4 h-[450px] overflow-y-auto pr-3">
+                        </div>
                 </div>
             </div>
+
         </div>
     </div>
 
     <script>
-        let secret = "";
+        let generatedCode = "";
 
-        // Real-time Metadata Fetch (Auto-fill No. of Comments)
-        async function getMeta() {
-            const link = document.getElementById('url').value;
-            if(!link) { document.getElementById('count').value = ""; return; }
-            try {
-                const r = await fetch('/get_metadata', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url: link})
-                });
-                const d = await r.json();
-                if(d.commentCount) document.getElementById('count').value = d.commentCount;
-            } catch(e) {}
+        // SECURITY CHECK LOGIC
+        function triggerSecurityCheck() {
+            generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+            const display = document.getElementById('captchaBox');
+            display.innerText = generatedCode;
+            display.classList.remove('hidden');
+            document.getElementById('captchaInput').classList.remove('hidden');
+            document.getElementById('confirmAuthBtn').classList.remove('hidden');
         }
 
-        // Verification Logic
-        function genOTP() {
-            secret = Math.floor(100000 + Math.random() * 900000).toString();
-            document.getElementById('otpBox').innerText = secret;
-            document.getElementById('otpBox').classList.remove('hidden');
-            document.getElementById('otpIn').classList.remove('hidden');
-            document.getElementById('vBtn').classList.remove('hidden');
+        function processVerification() {
+            const input = document.getElementById('captchaInput').value;
+            if(input === generatedCode) {
+                document.getElementById('authSection').classList.add('hidden');
+                document.getElementById('analyzerSection').classList.remove('hidden');
+            } else {
+                alert("Security Code Mismatch. Please re-verify.");
+            }
         }
 
-        function verify() {
-            if(document.getElementById('otpIn').value === secret) {
-                document.getElementById('authPanel').classList.add('hidden');
-                document.getElementById('mainPanel').classList.remove('hidden');
-            } else { alert("Verification Failed"); }
-        }
-
-        // Final Analysis Trigger
-        async function start() {
-            const link = document.getElementById('url').value;
-            const amt = document.getElementById('count').value;
-            if(!link) return;
-
-            const btn = document.getElementById('go');
-            btn.innerText = "PROCESSING...";
-            btn.disabled = true;
+        // REAL-TIME AUTO-FILL LOGIC
+        async function autoDetectMetadata() {
+            const url = document.getElementById('targetUrl').value;
+            const countBox = document.getElementById('commentDepth');
+            
+            if(!url) {
+                countBox.value = "";
+                return;
+            }
 
             try {
-                const r = await fetch('/analyze', {
+                const response = await fetch('/get_metadata', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url: link, max_results: amt})
+                    body: JSON.stringify({url: url})
                 });
-                const d = await r.json();
-                
-                // Switch UNDEFINED% to real data
-                document.getElementById('pLabel').innerText = d.p_per + "%";
-                document.getElementById('nLabel').innerText = d.n_per + "%";
-                document.getElementById('pFill').style.width = d.p_per + "%";
-                document.getElementById('nFill').style.width = d.n_per + "%";
-
-                const list = document.getElementById('feed');
-                list.innerHTML = '';
-                d.comments.forEach(c => {
-                    const row = document.createElement('div');
-                    row.className = `p-3 text-xs font-medium rounded-lg border-l-4 ${c.sentiment === 'Positive' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-rose-50 border-rose-500 text-rose-700'}`;
-                    row.innerText = c.text;
-                    list.appendChild(row);
-                });
-            } catch(e) { alert("Analysis Error"); }
-            btn.innerText = "ANALYZE";
-            btn.disabled = false;
+                const data = await response.json();
+                if(data.commentCount) {
+                    countBox.value = data.commentCount;
+                }
+            } catch(e) {
+                console.log("System scanning for valid ID...");
+            }
         }
+
+        // EXECUTION ENGINE
+        async function executeAnalysis() {
+            const url = document.getElementById('targetUrl').value;
+            const depth = document.getElementById('commentDepth').value;
+            const visualizer = document.getElementById('visualizerPanel');
+            const streamStatus = document.getElementById('streamStatus');
+            const runBtn = document.getElementById('runBtn');
+
+            // Force visualizer to show if empty analyze is clicked
+            visualizer.classList.remove('hidden');
+
+            if(!url) {
+                document.getElementById('posLabel').innerText = "UNDEFINED%";
+                document.getElementById('negLabel').innerText = "UNDEFINED%";
+                return;
+            }
+
+            runBtn.innerText = "PROCESSING DATA STREAM...";
+            runBtn.disabled = true;
+            streamStatus.children[0].classList.replace('bg-slate-300', 'bg-emerald-500');
+            streamStatus.children[1].innerText = "Analyzing";
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({url: url, max_results: depth})
+                });
+                const result = await response.json();
+
+                // Update Visualizer
+                document.getElementById('posLabel').innerText = result.positive_percentage + "%";
+                document.getElementById('negLabel').innerText = result.negative_percentage + "%";
+                document.getElementById('posBar').style.width = result.positive_percentage + "%";
+                document.getElementById('negBar').style.width = result.negative_percentage + "%";
+
+                // Update Feed
+                const feedContainer = document.getElementById('commentFeed');
+                feedContainer.innerHTML = '';
+                result.comments.forEach(c => {
+                    const card = document.createElement('div');
+                    card.className = `p-4 text-xs font-semibold rounded-xl border-l-[5px] transition-all hover:translate-x-1 ${c.sentiment === 'Positive' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-rose-50 border-rose-500 text-rose-700'}`;
+                    card.innerText = c.text;
+                    feedContainer.appendChild(card);
+                });
+
+            } catch(e) {
+                console.error("Critical Engine Failure:", e);
+            }
+
+            runBtn.innerText = "ANALYZE";
+            runBtn.disabled = false;
+        }
+
+        console.log("System Initialized | Terminal ID: Mrinal Dashora - 24BCON1413");
     </script>
 </body>
 </html>
