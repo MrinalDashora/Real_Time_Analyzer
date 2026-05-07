@@ -1,5 +1,4 @@
-    Flask
-    requests
-    beautifulsoup4
-    gunicorn
-    python-dotenv
+Flask
+google-api-python-client
+python-dotenv
+gunicorn
