@@ -2,206 +2,174 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CogniSense Studio | Real-Time Analyzer</title>
+    <title>CogniSense | Studio v2.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
-        .glass-panel { background: white; border: 1px solid #e5e7eb; border-radius: 1.25rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
-        .input-field { background: #f3f4f6; border-radius: 0.75rem; border: 2px solid transparent; transition: all 0.2s; outline: none; }
-        .input-field:focus { border-color: #2563eb; background: white; }
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;900&display=swap');
+        body { background: #f8fafc; font-family: 'Outfit', sans-serif; }
+        .glass { background: white; border-radius: 28px; border: 1px solid #e2e8f0; }
+        .neg-block { background: #fff1f2 !important; border: 1px solid #fecaca !important; }
+        .blur-txt { filter: blur(14px); opacity: 0.1; user-select: none; pointer-events: none; }
+        .btn-press:active { transform: scale(0.96); }
         ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
 <body class="p-6 md:p-12">
 
-    <div class="max-w-7xl mx-auto space-y-10">
-        
-        <div class="bg-white p-10 border-l-[6px] border-blue-600 rounded-r-2xl shadow-sm">
-            <h2 class="text-xl font-black uppercase italic text-slate-900 mb-3 tracking-tight">System Overview: Real-Time CogniSense</h2>
-            <p class="text-base text-slate-600 leading-relaxed font-medium max-w-4xl">
+    <div id="authModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[200] flex items-center justify-center hidden">
+        <div class="glass p-10 max-w-sm w-full text-center shadow-2xl">
+            <h2 class="text-xl font-black mb-4 uppercase italic tracking-tighter">Security Shield</h2>
+            <div id="otpDisplay" class="hidden p-4 mb-6 rounded-2xl bg-cyan-50 border border-cyan-100">
+                <p class="text-[10px] font-black text-cyan-600 uppercase mb-1">Gmail Code</p>
+                <p id="otpVal" class="text-2xl font-black text-cyan-700 tracking-widest"></p>
+            </div>
+            <div id="emailStep">
+                <input type="email" id="uEmail" class="w-full bg-slate-50 border-0 rounded-2xl px-5 py-4 mb-4 outline-none text-sm" placeholder="example@gmail.com">
+                <button onclick="reqOTP()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl btn-press uppercase text-xs">Verify Gmail</button>
+            </div>
+            <div id="otpStep" class="hidden">
+                <input type="text" id="cIn" maxlength="4" class="w-full bg-blue-50 border-0 rounded-2xl px-5 py-4 mb-4 outline-none text-center text-xl font-black" placeholder="0000">
+                <button onclick="vOTP()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl btn-press uppercase text-xs">Confirm Access</button>
+            </div>
+            <button onclick="closeAuth()" class="mt-4 text-[10px] font-bold text-slate-400 uppercase">Abort</button>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        <header class="glass p-6 flex justify-between items-center border-b-4 border-blue-600">
+            <div>
+                <h1 class="text-2xl font-black uppercase tracking-tighter italic text-slate-900">CogniSense Studio</h1>
+                <p class="text-[10px] font-bold text-blue-500">MRINAL DASHORA | 24BCON1413</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <button id="inBtn" onclick="showAuth()" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase btn-press">Sign In</button>
+                <div id="pnl" class="hidden flex items-center gap-4">
+                    <div class="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 text-[10px] font-black text-emerald-600 uppercase" id="uHndl"></div>
+                    <button onclick="logOut()" class="text-rose-500 font-bold text-[10px] uppercase hover:underline">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <section class="glass p-8 border-l-8 border-blue-600">
+            <h2 class="text-sm font-black text-slate-900 uppercase italic tracking-tighter mb-2">System Overview: Real-Time CogniSense</h2>
+            <p class="text-xs text-slate-500 leading-relaxed font-medium">
                 An advanced analytical engine designed to instantly evaluate public sentiment. By connecting directly to a video's data stream, it extracts raw comments and visualizes the precise ratio of positive engagement to critical feedback.
             </p>
-        </div>
+        </section>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
-            
-            <div class="lg:col-span-5 space-y-8">
-                
-                <div id="authSection" class="glass-panel p-10">
-                    <h3 class="text-xs font-black text-blue-600 mb-6 uppercase tracking-[0.2em]">Human Validation</h3>
-                    <div class="space-y-5">
-                        <button onclick="triggerSecurityCheck()" class="w-full bg-[#0f172a] hover:bg-slate-800 text-white font-black py-5 rounded-xl uppercase text-sm tracking-widest transition-all shadow-xl shadow-slate-200">
-                            1. Initialize Security Check
-                        </button>
-                        
-                        <div id="captchaBox" class="hidden text-center py-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl font-mono text-2xl font-black text-slate-700 tracking-[0.5em]"></div>
-                        
-                        <input type="text" id="captchaInput" placeholder="ENTER CAPTCHA CODE" class="hidden w-full input-field p-5 text-center font-black text-lg uppercase">
-                        
-                        <button id="confirmAuthBtn" onclick="processVerification()" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-xl uppercase text-sm tracking-widest shadow-lg shadow-blue-100">
-                            2. Verify Identity
-                        </button>
-                    </div>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <aside class="lg:col-span-4 space-y-6">
+                <div class="glass p-8 shadow-sm">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Video Source</label>
+                    <input type="text" id="urlIn" class="w-full bg-slate-50 border-0 rounded-xl px-5 py-4 mb-4 outline-none text-sm border-2 border-transparent focus:border-blue-500" placeholder="Paste YouTube link...">
+                    <button onclick="getM()" id="cBtn" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl btn-press text-[10px] uppercase">Connect</button>
                 </div>
-
-                <div id="analyzerSection" class="hidden glass-panel p-10 space-y-8">
-                    <div>
-                        <label class="block text-xs font-black text-blue-600 mb-3 uppercase tracking-widest">Video Source URL</label>
-                        <input type="text" id="targetUrl" oninput="autoDetectMetadata()" placeholder="https://youtube.com/watch?v=..." class="w-full input-field p-5 text-sm font-semibold text-slate-700">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-xs font-black text-blue-600 mb-3 uppercase tracking-widest">No. of Comments</label>
-                        <input type="number" id="commentDepth" placeholder="e.g. 50" class="w-full input-field p-5 text-2xl font-black text-slate-900">
-                    </div>
-
-                    <button onclick="executeAnalysis()" id="runBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-xl uppercase tracking-[0.2em] shadow-2xl shadow-blue-200 transition-all active:scale-[0.98]">
-                        Analyze
-                    </button>
+                <div id="vCard" class="hidden glass p-4 shadow-sm animate-in fade-in">
+                    <img id="vThmb" class="rounded-2xl w-full mb-4 shadow-sm" src="">
+                    <h3 id="vTtl" class="font-bold text-[10px] text-slate-700 leading-tight uppercase px-2"></h3>
                 </div>
-            </div>
+                <div id="dCtrl" class="hidden glass p-8 border-2 border-blue-50">
+                    <label class="block text-[10px] font-bold text-blue-500 uppercase mb-2">No. of Comments</label>
+                    <input type="number" id="dNum" class="w-full bg-blue-50 border-0 rounded-xl px-5 py-4 mb-4 outline-none font-black text-sm" placeholder="50">
+                    <button onclick="exec()" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl btn-press text-[10px] uppercase">Analyze Sentiment</button>
+                </div>
+            </aside>
 
-            <div class="lg:col-span-7 space-y-8">
-                
-                <div id="visualizerPanel" class="glass-panel p-10">
-                    <div class="flex justify-between mb-5">
-                        <div class="flex flex-col">
-                            <span id="posLabel" class="text-2xl font-black text-blue-600 tracking-tighter">0.0%</span>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Positive Engagement</span>
+            <main class="lg:col-span-8">
+                <div id="loadUI" class="hidden glass p-32 text-center text-[10px] font-black uppercase text-slate-400 italic animate-pulse tracking-widest">Mining Sentiment...</div>
+                <div id="dataUI" class="hidden space-y-6">
+                    <div class="glass p-10 shadow-sm relative overflow-hidden">
+                        <div class="flex justify-between mb-4 text-[10px] font-black uppercase tracking-widest">
+                            <span class="text-blue-600" id="pT"></span>
+                            <span class="text-rose-600" id="nT"></span>
                         </div>
-                        <div class="flex flex-col items-end">
-                            <span id="negLabel" class="text-2xl font-black text-rose-600 tracking-tighter">0.0%</span>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Critical Feedback</span>
+                        <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex">
+                            <div id="pB" class="h-full bg-blue-600 transition-all duration-1000"></div>
+                            <div id="nB" class="h-full bg-rose-500 transition-all duration-1000"></div>
                         </div>
                     </div>
-                    
-                    <div class="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
-                        <div id="posBar" class="h-full bg-blue-600 transition-all duration-[1200ms] ease-out" style="width: 50%"></div>
-                        <div id="negBar" class="h-full bg-rose-500 transition-all duration-[1200ms] ease-out" style="width: 50%"></div>
-                    </div>
+                    <div id="fd" class="space-y-3 h-[520px] overflow-y-auto pr-4"></div>
                 </div>
-
-                <div class="glass-panel p-8">
-                    <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                        <h3 class="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">Live Data Stream</h3>
-                        <div id="streamStatus" class="flex items-center gap-2">
-                            <div class="w-2 h-2 bg-slate-300 rounded-full animate-pulse"></div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase">Idle</span>
-                        </div>
-                    </div>
-                    <div id="commentFeed" class="space-y-4 h-[450px] overflow-y-auto pr-3">
-                        </div>
-                </div>
-            </div>
-
+            </main>
         </div>
     </div>
 
     <script>
-        let generatedCode = "";
+        let LOGGED = false, DATA = null;
 
-        // SECURITY CHECK LOGIC
-        function triggerSecurityCheck() {
-            generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
-            const display = document.getElementById('captchaBox');
-            display.innerText = generatedCode;
-            display.classList.remove('hidden');
-            document.getElementById('captchaInput').classList.remove('hidden');
-            document.getElementById('confirmAuthBtn').classList.remove('hidden');
+        // --- NEW: FULL ENTER KEY SUPPORT ---
+        document.getElementById('urlIn').addEventListener('keypress', (e) => { if(e.key === 'Enter') getM(); });
+        document.getElementById('dNum').addEventListener('keypress', (e) => { if(e.key === 'Enter') exec(); });
+        document.getElementById('uEmail').addEventListener('keypress', (e) => { if(e.key === 'Enter') reqOTP(); });
+        document.getElementById('cIn').addEventListener('keypress', (e) => { if(e.key === 'Enter') vOTP(); });
+
+        function showAuth() { document.getElementById('authModal').classList.remove('hidden'); }
+        function closeAuth() { document.getElementById('authModal').classList.add('hidden'); }
+        function logOut() { LOGGED = false; location.reload(); }
+
+        async function reqOTP() {
+            const e = document.getElementById('uEmail').value;
+            const res = await fetch('/request_otp', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: e}) });
+            const d = await res.json();
+            if(d.error) return alert(d.error);
+            document.getElementById('otpVal').textContent = d.code;
+            document.getElementById('otpDisplay').classList.remove('hidden');
+            document.getElementById('emailStep').classList.add('hidden');
+            document.getElementById('otpStep').classList.remove('hidden');
+            document.getElementById('cIn').focus();
         }
 
-        function processVerification() {
-            const input = document.getElementById('captchaInput').value;
-            if(input === generatedCode) {
-                document.getElementById('authSection').classList.add('hidden');
-                document.getElementById('analyzerSection').classList.remove('hidden');
-            } else {
-                alert("Security Code Mismatch. Please re-verify.");
-            }
+        async function vOTP() {
+            if(document.getElementById('cIn').value !== document.getElementById('otpVal').textContent) return alert("Invalid Verification");
+            LOGGED = true;
+            document.getElementById('uHndl').textContent = document.getElementById('uEmail').value.split('@')[0];
+            document.getElementById('inBtn').classList.add('hidden');
+            document.getElementById('pnl').classList.remove('hidden');
+            closeAuth();
+            if(DATA) render(DATA);
         }
 
-        // REAL-TIME AUTO-FILL LOGIC
-        async function autoDetectMetadata() {
-            const url = document.getElementById('targetUrl').value;
-            const countBox = document.getElementById('commentDepth');
-            
-            if(!url) {
-                countBox.value = "";
-                return;
-            }
-
-            try {
-                const response = await fetch('/get_metadata', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url: url})
-                });
-                const data = await response.json();
-                if(data.commentCount) {
-                    countBox.value = data.commentCount;
-                }
-            } catch(e) {
-                // Silently wait for valid link
-            }
+        async function getM() {
+            const u = document.getElementById('urlIn').value.trim();
+            if(!u) return;
+            const res = await fetch('/get_meta', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u}) });
+            const d = await res.json();
+            if(d.error) return alert(d.error);
+            document.getElementById('vThmb').src = d.thumb;
+            document.getElementById('vTtl').textContent = d.title;
+            document.getElementById('dNum').value = d.total;
+            document.getElementById('vCard').classList.remove('hidden');
+            document.getElementById('dCtrl').classList.remove('hidden');
+            document.getElementById('dNum').focus();
         }
 
-        // EXECUTION ENGINE
-        async function executeAnalysis() {
-            const url = document.getElementById('targetUrl').value;
-            const depth = document.getElementById('commentDepth').value;
-            const streamStatus = document.getElementById('streamStatus');
-            const runBtn = document.getElementById('runBtn');
-
-            // Handle empty analysis intent
-            if(!url) {
-                document.getElementById('posLabel').innerText = "UNDEFINED%";
-                document.getElementById('negLabel').innerText = "UNDEFINED%";
-                document.getElementById('posBar').style.width = "50%";
-                document.getElementById('negBar').style.width = "50%";
-                return;
-            }
-
-            runBtn.innerText = "PROCESSING DATA STREAM...";
-            runBtn.disabled = true;
-            streamStatus.children[0].classList.replace('bg-slate-300', 'bg-emerald-500');
-            streamStatus.children[1].innerText = "Analyzing";
-
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({url: url, max_results: depth})
-                });
-                const result = await response.json();
-
-                // Update Visualizer with real data
-                document.getElementById('posLabel').innerText = result.positive_percentage + "%";
-                document.getElementById('negLabel').innerText = result.negative_percentage + "%";
-                document.getElementById('posBar').style.width = result.positive_percentage + "%";
-                document.getElementById('negBar').style.width = result.negative_percentage + "%";
-
-                // Update Feed
-                const feedContainer = document.getElementById('commentFeed');
-                feedContainer.innerHTML = '';
-                result.comments.forEach(c => {
-                    const card = document.createElement('div');
-                    card.className = `p-4 text-xs font-semibold rounded-xl border-l-[5px] transition-all hover:translate-x-1 ${c.sentiment === 'Positive' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-rose-50 border-rose-500 text-rose-700'}`;
-                    card.innerText = c.text;
-                    feedContainer.appendChild(card);
-                });
-
-            } catch(e) {
-                console.error("Critical Engine Failure");
-            }
-
-            runBtn.innerText = "ANALYZE";
-            runBtn.disabled = false;
+        async function exec() {
+            const u = document.getElementById('urlIn').value.trim(), l = document.getElementById('dNum').value;
+            if(!u || !l) return;
+            document.getElementById('loadUI').classList.remove('hidden');
+            document.getElementById('dataUI').classList.add('hidden');
+            const res = await fetch('/analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u, limit: l}) });
+            DATA = await res.json();
+            render(DATA);
         }
 
-        console.log("System Initialized | Terminal ID: Mrinal Dashora - 24BCON1413");
+        function render(d) {
+            document.getElementById('pT').textContent = d.positive + "%";
+            document.getElementById('nT').textContent = d.negative + "%";
+            document.getElementById('pB').style.width = d.positive + "%";
+            document.getElementById('nB').style.width = d.negative + "%";
+            document.getElementById('fd').innerHTML = d.stream.map(c => `
+                <div class="flex gap-4 p-5 rounded-3xl bg-white border border-slate-100 ${c.is_neg ? 'neg-block' : ''} shadow-sm">
+                    <img src="${c.avatar}" class="w-10 h-10 rounded-full border-2 border-white">
+                    <div class="flex-1">
+                        <p class="text-[10px] font-black text-slate-800 uppercase tracking-tight">${c.author} ${c.explicit && !LOGGED ? '<span class="text-rose-600 ml-2 italic">[RESTRICTED]</span>' : ''}</p>
+                        <p class="text-xs text-slate-600 leading-relaxed mt-1 ${c.explicit && !LOGGED ? 'blur-txt' : ''}">${c.html}</p>
+                    </div>
+                </div>`).join('');
+            document.getElementById('loadUI').classList.add('hidden');
+            document.getElementById('dataUI').classList.remove('hidden');
+        }
     </script>
 </body>
 </html>

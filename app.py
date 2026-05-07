@@ -1,143 +1,156 @@
 import os
 import re
+import random
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify
 from googleapiclient.discovery import build
-from dotenv import load_dotenv
+# Ensure your words.py file is in the same directory
+from words import positive_words, negative_words, explicit_words, intensifiers, negations
 
-# Initialize environment and Flask
-load_dotenv()
-app = Flask(__name__)
-
-# System Configuration
+load_dotenv() 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
-youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
 
-def extract_video_id(url):
-    """
-    Extracts the unique 11-character YouTube video ID using regex.
-    Supports standard, shortened, and mobile URLs.
-    """
-    regex_patterns = [
-        r'(?:v=|\/)([0-9A-Za-z_-]{11}).*',
-        r'(?:be\/)([0-9A-Za-z_-]{11}).*'
-    ]
-    for pattern in regex_patterns:
-        match = re.search(pattern, url)
-        if match:
-            return match.group(1)
-    return None
+app = Flask(__name__)
+active_otps = {}
+
+# --- ARCHITECT: MRINAL DASHORA | 24BCON1413 ---
+
+def analyze_and_highlight(text):
+    if not text: return None
+    # Remove HTML tags that YouTube might include
+    clean_text = re.sub('<[^<]+?>', '', text)
+    words = clean_text.split()
+    p_pts, n_pts = 0, 0
+    highlighted_words = []
+    
+    # Check for explicit content
+    is_explicit = any(re.sub(r'\W+', '', w.lower()) in explicit_words for w in words)
+
+    for i, word in enumerate(words):
+        clean = re.sub(r'\W+', '', word.lower())
+        is_negated = i > 0 and words[i-1].lower() in negations
+        weight = 2.0 if i > 0 and words[i-1].lower() in intensifiers else 1.0
+        
+        display = word
+        if clean in positive_words:
+            if is_negated: 
+                n_pts += weight
+                display = f'<b class="text-rose-600 underline">{word}</b>'
+            else: 
+                p_pts += weight
+                display = f'<b class="text-blue-600 underline">{word}</b>'
+        elif clean in negative_words:
+            if is_negated: 
+                p_pts += weight
+                display = f'<b class="text-blue-600 underline">{word}</b>'
+            else: 
+                n_pts += weight
+                display = f'<b class="text-rose-600 underline">{word}</b>'
+        
+        highlighted_words.append(display)
+
+    return {
+        "p": p_pts, 
+        "n": n_pts, 
+        "html": " ".join(highlighted_words), 
+        "explicit": is_explicit
+    }
+
+def extract_id(url):
+    # Handles search params and direct paths (shorts/mobile)
+    pattern = r'(?:v=|\/|be\/)([0-9A-Za-z_-]{11})'
+    match = re.search(pattern, url)
+    return match.group(1) if match else None
 
 @app.route('/')
-def home():
-    """Renders the main dashboard."""
+def index():
     return render_template('index.html')
 
-@app.route('/get_metadata', methods=['POST'])
-def get_metadata():
-    """
-    Fetches video statistics instantly when a URL is pasted.
-    Used for the real-time auto-fill feature.
-    """
-    payload = request.json
-    video_url = payload.get('url')
-    video_id = extract_video_id(video_url)
-    
-    if not video_id:
-        return jsonify({"error": "Invalid Video Link"}), 400
+@app.route('/request_otp', methods=['POST'])
+def request_otp():
+    data = request.get_json()
+    email = data.get('email', '')
+    if not re.match(r'^[a-zA-Z0-9._%+-]+@gmail\.com$', email):
+        return jsonify({"error": "Invalid Gmail format."})
+    otp = str(random.randint(1000, 9999))
+    active_otps[email] = otp
+    return jsonify({"success": True, "code": otp})
 
-    try:
-        # Requesting statistics for comment count
-        api_request = youtube.videos().list(
-            part="statistics,snippet",
-            id=video_id
-        )
-        api_response = api_request.execute()
+@app.route('/get_meta', methods=['POST'])
+def get_meta():
+    data = request.get_json()
+    v_id = extract_id(data.get('url', ''))
+    if not v_id: return jsonify({"error": "Invalid URL"})
+    
+    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+    v_resp = youtube.videos().list(part="snippet,statistics", id=v_id).execute()
+    
+    if not v_resp['items']:
+        return jsonify({"error": "Video not found"})
         
-        if not api_response['items']:
-            return jsonify({"error": "Video Not Found"}), 404
-            
-        stats = api_response['items'][0]['statistics']
-        snippet = api_response['items'][0]['snippet']
-        
-        return jsonify({
-            "commentCount": stats.get('commentCount', 0),
-            "title": snippet.get('title'),
-            "thumbnail": snippet['thumbnails']['high']['url']
-        })
-    except Exception as error:
-        return jsonify({"error": str(error)}), 500
+    item = v_resp['items'][0]
+    return jsonify({
+        "title": item['snippet']['title'],
+        "thumb": item['snippet']['thumbnails']['high']['url'],
+        "total": int(item['statistics'].get('commentCount', 0))
+    })
 
 @app.route('/analyze', methods=['POST'])
-def analyze_sentiment():
-    """
-    The core analytical engine. Fetches comments, runs NLP logic, 
-    and returns precise percentage ratios.
-    """
-    payload = request.json
-    video_url = payload.get('url')
-    requested_limit = int(payload.get('max_results', 50))
-    video_id = extract_video_id(video_url)
-
-    if not video_id:
-        return jsonify({"error": "System requires a valid URL to proceed"}), 400
-
+def analyze():
+    data = request.get_json()
+    v_url = data.get('url', '')
+    v_id = extract_id(v_url)
+    limit = int(data.get('limit', 100))
+    
+    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+    comments_data, next_token = [], None
+    
     try:
-        comment_dataset = []
-        next_token = None
-        
-        # Paginated fetching to respect YouTube API limits
-        while len(comment_dataset) < requested_limit:
-            api_request = youtube.commentThreads().list(
-                part="snippet",
-                videoId=video_id,
-                maxResults=min(100, requested_limit - len(comment_dataset)),
+        while len(comments_data) < limit:
+            res = youtube.commentThreads().list(
+                part="snippet", 
+                videoId=v_id, 
+                maxResults=100, 
                 pageToken=next_token,
-                textFormat="plainText"
-            )
-            api_response = api_request.execute()
-
-            for item in api_response['items']:
-                raw_text = item['snippet']['topLevelComment']['snippet']['textDisplay']
-                
-                # NLP Sentiment Logic
-                positive_keywords = [
-                    'good', 'great', 'amazing', 'love', 'best', 'wow', 'excellent', 
-                    'brilliant', 'nice', 'awesome', 'informative', 'helpful', 'thanks'
-                ]
-                
-                # Check for positive hits in lowercase text
-                is_positive = any(word in raw_text.lower() for word in positive_keywords)
-                sentiment_label = 'Positive' if is_positive else 'Negative'
-                
-                comment_dataset.append({
-                    'text': raw_text,
-                    'sentiment': sentiment_label
+                textFormat='plainText'
+            ).execute()
+            
+            for item in res.get("items", []):
+                snippet = item["snippet"]["topLevelComment"]["snippet"]
+                comments_data.append({
+                    "author": snippet["authorDisplayName"], 
+                    "avatar": snippet["authorProfileImageUrl"], 
+                    "text": snippet["textDisplay"]
                 })
+                if len(comments_data) >= limit: break
+                
+            next_token = res.get('nextPageToken')
+            if not next_token: break
 
-            next_token = api_response.get('nextPageToken')
-            if not next_token:
-                break
-
-        # Calculating exact mathematical ratios
-        positive_hits = sum(1 for entry in comment_dataset if entry.sentiment == 'Positive')
-        total_analyzed = len(comment_dataset)
+        stream, tp, tn = [], 0, 0
+        for c in comments_data:
+            analysis = analyze_and_highlight(c["text"])
+            if not analysis: continue
+            
+            tp += analysis["p"]
+            tn += analysis["n"]
+            
+            stream.append({
+                "author": c["author"], 
+                "avatar": c["avatar"], 
+                "html": analysis["html"], 
+                "explicit": analysis["explicit"], 
+                "is_neg": analysis["n"] > analysis["p"]
+            })
         
-        if total_analyzed > 0:
-            pos_ratio = round((positive_hits / total_analyzed) * 100, 1)
-            neg_ratio = round(100 - pos_ratio, 1)
-        else:
-            pos_ratio, neg_ratio = 0, 0
-        
+        weight = tp + tn
         return jsonify({
-            "comments": comment_dataset,
-            "positive_percentage": pos_ratio,
-            "negative_percentage": neg_ratio,
-            "total_count": total_analyzed
+            "positive": round((tp/weight*100), 1) if weight > 0 else 50,
+            "negative": round((tn/weight*100), 1) if weight > 0 else 50,
+            "stream": stream
         })
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
-    except Exception as error:
-        return jsonify({"error": str(error)}), 500
-
-if __name__ == '__main__':
-    # Running on local port 5000 for development
+if __name__ == "__main__":
     app.run(debug=True)
