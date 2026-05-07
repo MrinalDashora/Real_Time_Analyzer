@@ -2,157 +2,208 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>CogniSense | Studio v2.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time CogniSense</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;900&display=swap');
-        body { background: #f8fafc; font-family: 'Outfit', sans-serif; }
-        .glass { background: white; border-radius: 28px; border: 1px solid #e2e8f0; }
-        .neg-block { background: #fff1f2 !important; border: 1px solid #fecaca !important; }
-        .blur-txt { filter: blur(14px); opacity: 0.1; user-select: none; pointer-events: none; }
-        .btn-press:active { transform: scale(0.96); }
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: #ffffff; border-radius: 1rem; }
+        .input-glass { background: #f0f4f8; border-radius: 0.75rem; border: none; outline: none; }
+        .input-glass:focus { box-shadow: 0 0 0 2px #2563eb; }
+        /* Custom scrollbar for the feed */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
-<body class="p-6 md:p-12">
+<body class="bg-slate-50 text-slate-800 min-h-screen p-6 md:p-10">
 
-    <div id="authModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[200] flex items-center justify-center hidden">
-        <div class="glass p-10 max-w-sm w-full text-center shadow-2xl">
-            <h2 class="text-xl font-black mb-4 uppercase italic tracking-tighter">Security Shield</h2>
-            <div id="otpDisplay" class="hidden p-4 mb-6 rounded-2xl bg-cyan-50 border border-cyan-100">
-                <p class="text-[10px] font-black text-cyan-600 uppercase mb-1">Gmail Code</p>
-                <p id="otpVal" class="text-2xl font-black text-cyan-700 tracking-widest"></p>
-            </div>
-            <div id="emailStep">
-                <input type="email" id="uEmail" class="w-full bg-slate-50 border-0 rounded-2xl px-5 py-4 mb-4 outline-none text-sm" placeholder="example@gmail.com">
-                <button onclick="reqOTP()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl btn-press uppercase text-xs">Verify Gmail</button>
-            </div>
-            <div id="otpStep" class="hidden">
-                <input type="text" id="cIn" maxlength="4" class="w-full bg-blue-50 border-0 rounded-2xl px-5 py-4 mb-4 outline-none text-center text-xl font-black" placeholder="0000">
-                <button onclick="vOTP()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl btn-press uppercase text-xs">Confirm Access</button>
-            </div>
-            <button onclick="closeAuth()" class="mt-4 text-[10px] font-bold text-slate-400 uppercase">Abort</button>
-        </div>
-    </div>
-
-    <div class="max-w-6xl mx-auto space-y-6">
-        <header class="glass p-6 flex justify-between items-center border-b-4 border-blue-600">
+    <div class="max-w-6xl mx-auto space-y-8">
+        <header class="flex justify-between items-center pb-6 border-b-2 border-slate-200">
             <div>
-                <h1 class="text-2xl font-black uppercase tracking-tighter italic text-slate-900">CogniSense Studio</h1>
-                <p class="text-[10px] font-bold text-blue-500">MRINAL DASHORA | 24BCON1413</p>
+                <h1 class="text-3xl font-black tracking-tighter text-blue-600 uppercase">CogniSense Studio</h1>
+                <p class="text-xs font-bold text-slate-400 tracking-widest mt-1">V2.0 LIVE ENVIRONMENT</p>
             </div>
-            <div class="flex items-center gap-4">
-                <button id="inBtn" onclick="showAuth()" class="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase btn-press">Sign In</button>
-                <div id="pnl" class="hidden flex items-center gap-4">
-                    <div class="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 text-[10px] font-black text-emerald-600 uppercase" id="uHndl"></div>
-                    <button onclick="logOut()" class="text-rose-500 font-bold text-[10px] uppercase hover:underline">Logout</button>
-                </div>
+            <div id="authStatus" class="px-4 py-2 bg-slate-200 text-slate-500 text-xs font-black rounded-full uppercase tracking-widest">
+                Status: Locked
             </div>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <aside class="lg:col-span-4 space-y-6">
-                <div class="glass p-8 shadow-sm">
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Video Source</label>
-                    <input type="text" id="urlIn" class="w-full bg-slate-50 border-0 rounded-xl px-5 py-4 mb-4 outline-none text-sm border-2 border-transparent focus:border-blue-500" placeholder="Paste YouTube link...">
-                    <button onclick="getM()" id="cBtn" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl btn-press text-[10px] uppercase">Connect</button>
-                </div>
-                <div id="vCard" class="hidden glass p-4 shadow-sm animate-in fade-in">
-                    <img id="vThmb" class="rounded-2xl w-full mb-4 shadow-sm" src="">
-                    <h3 id="vTtl" class="font-bold text-[10px] text-slate-700 leading-tight uppercase px-2"></h3>
-                </div>
-                <div id="dCtrl" class="hidden glass p-8 border-2 border-blue-50">
-                    <label class="block text-[10px] font-bold text-blue-500 uppercase mb-2">Analysis Depth</label>
-                    <input type="number" id="dNum" class="w-full bg-blue-50 border-0 rounded-xl px-5 py-4 mb-4 outline-none font-black text-sm">
-                    <button onclick="exec()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl btn-press text-[10px] uppercase">Analyze</button>
-                </div>
-            </aside>
+        <div class="bg-white p-8 shadow-sm border-l-4 border-blue-600 rounded-r-xl">
+            <h2 class="text-lg font-black uppercase text-slate-900 mb-2 tracking-tight italic">System Overview: Real-Time CogniSense</h2>
+            <p class="text-sm text-slate-600 leading-relaxed font-medium">
+                An advanced analytical engine designed to instantly evaluate public sentiment. By connecting directly to a video's data stream, it extracts raw comments, filters them through a custom natural language processor, and visualizes the precise ratio of positive engagement to critical feedback.
+            </p>
+        </div>
 
-            <main class="lg:col-span-8">
-                <div id="loadUI" class="hidden glass p-32 text-center text-[10px] font-black uppercase text-slate-400 italic animate-pulse tracking-widest">Mining Sentiment...</div>
-                <div id="dataUI" class="hidden space-y-6">
-                    <div class="glass p-10 shadow-sm relative overflow-hidden">
-                        <div class="flex justify-between mb-4 text-[10px] font-black uppercase tracking-widest"><span class="text-blue-600" id="pT"></span><span class="text-rose-600" id="nT"></span></div>
-                        <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden flex"><div id="pB" class="h-full bg-blue-600 transition-all duration-1000"></div><div id="nB" class="h-full bg-rose-500"></div></div>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <div class="lg:col-span-5 space-y-6">
+                
+                <div id="authPanel" class="glass p-8 shadow-sm border border-slate-100">
+                    <h3 class="text-sm font-black text-blue-600 mb-4 uppercase tracking-widest">System Access</h3>
+                    <div class="space-y-4">
+                        <button onclick="generateOTP()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-4 rounded-xl transition-all text-sm uppercase tracking-wide">1. Generate Auth Token</button>
+                        <div id="otpDisplay" class="hidden text-center p-3 bg-slate-100 rounded-xl font-mono text-lg font-bold tracking-widest text-slate-700"></div>
+                        <input type="text" id="otpInput" placeholder="ENTER TOKEN" class="w-full input-glass p-4 text-center font-black uppercase text-slate-700 placeholder-slate-400 hidden">
+                        <button id="verifyBtn" onclick="verifyOTP()" class="hidden w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl transition-all text-sm uppercase tracking-wide">2. Verify & Unlock</button>
                     </div>
-                    <div id="fd" class="space-y-3 h-[520px] overflow-y-auto pr-4"></div>
                 </div>
-            </main>
+
+                <div id="controlPanel" class="hidden glass p-8 shadow-sm border border-slate-100 space-y-6">
+                    <div>
+                        <label class="block text-xs font-black text-blue-600 mb-2 uppercase tracking-widest">Video Source URL</label>
+                        <input type="text" id="videoUrl" placeholder="https://youtube.com/watch?v=..." class="w-full input-glass p-4 text-sm font-medium text-slate-700">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-black text-blue-600 mb-2 uppercase tracking-widest">Analysis Depth</label>
+                        <input type="number" id="depth" value="50" min="10" max="2000" class="w-full input-glass p-4 text-xl font-black text-slate-900">
+                    </div>
+
+                    <button onclick="startAnalysis()" id="analyzeBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-4 rounded-xl transition-all uppercase tracking-widest shadow-lg shadow-blue-500/30">
+                        Analyze
+                    </button>
+                </div>
+
+                <div id="videoInfo" class="hidden glass p-6 shadow-sm border border-slate-100">
+                    <img id="thumb" src="" alt="Thumbnail" class="w-full rounded-lg mb-4 shadow-sm">
+                    <h3 id="vidTitle" class="font-bold text-slate-800 leading-tight text-sm"></h3>
+                </div>
+
+            </div>
+
+            <div class="lg:col-span-7">
+                
+                <div id="dataUI" class="hidden space-y-6">
+                    
+                    <div class="glass p-8 shadow-sm border border-slate-100 relative overflow-hidden">
+                        <div class="flex justify-between mb-3 text-sm font-black uppercase tracking-widest">
+                            <span class="text-blue-600" id="pT">0.0%</span>
+                            <span class="text-rose-600" id="nT">0.0%</span>
+                        </div>
+                        
+                        <div class="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex mb-3">
+                            <div id="pB" class="h-full bg-blue-600 transition-all duration-1000" style="width: 50%"></div>
+                            <div id="nB" class="h-full bg-rose-500 transition-all duration-1000" style="width: 50%"></div>
+                        </div>
+                        
+                        <div class="flex justify-between text-[10px] font-bold uppercase tracking-wider">
+                            <span class="text-blue-500">Positive Comments</span>
+                            <span class="text-rose-400">Negative Comments</span>
+                        </div>
+                    </div>
+                    
+                    <div class="glass p-6 shadow-sm border border-slate-100">
+                        <h3 class="text-xs font-black text-slate-400 mb-4 uppercase tracking-widest border-b border-slate-100 pb-2">Live Data Stream</h3>
+                        <div id="fd" class="space-y-3 h-[450px] overflow-y-auto pr-2">
+                            </div>
+                    </div>
+
+                </div>
+            </div>
+
         </div>
     </div>
 
     <script>
-        let LOGGED = false, DATA = null;
+        // System Identification Check
+        console.log("Terminal Output - Mrinal Dashora - Roll Number: 24BCON1413");
 
-        // Invisible Enter Key Support
-        document.getElementById('urlIn').addEventListener('keypress', (e) => { if(e.key === 'Enter') getM(); });
-        document.getElementById('uEmail').addEventListener('keypress', (e) => { if(e.key === 'Enter') reqOTP(); });
-        document.getElementById('cIn').addEventListener('keypress', (e) => { if(e.key === 'Enter') vOTP(); });
-        document.getElementById('dNum').addEventListener('keypress', (e) => { if(e.key === 'Enter') exec(); });
+        let currentOTP = "";
 
-        function showAuth() { document.getElementById('authModal').classList.remove('hidden'); }
-        function closeAuth() { document.getElementById('authModal').classList.add('hidden'); }
-        function logOut() { LOGGED = false; location.reload(); }
-
-        async function reqOTP() {
-            const e = document.getElementById('uEmail').value;
-            const res = await fetch('/request_otp', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({email: e}) });
-            const d = await res.json();
-            if(d.error) return alert(d.error);
-            document.getElementById('otpVal').textContent = d.code;
-            document.getElementById('otpDisplay').classList.remove('hidden');
-            document.getElementById('emailStep').classList.add('hidden');
-            document.getElementById('otpStep').classList.remove('hidden');
-            document.getElementById('cIn').focus();
+        // Authentication Logic
+        function generateOTP() {
+            currentOTP = Math.floor(100000 + Math.random() * 900000).toString();
+            const display = document.getElementById('otpDisplay');
+            display.innerText = currentOTP;
+            display.classList.remove('hidden');
+            document.getElementById('otpInput').classList.remove('hidden');
+            document.getElementById('verifyBtn').classList.remove('hidden');
         }
 
-        async function vOTP() {
-            const c = document.getElementById('cIn').value;
-            const e = document.getElementById('uEmail').value;
-            if(c !== document.getElementById('otpVal').textContent) return alert("Invalid Verification");
-            LOGGED = true;
-            document.getElementById('uHndl').textContent = e.split('@')[0];
-            document.getElementById('inBtn').classList.add('hidden');
-            document.getElementById('pnl').classList.remove('hidden');
-            closeAuth();
-            if(DATA) render(DATA);
+        function verifyOTP() {
+            const input = document.getElementById('otpInput').value;
+            if(input === currentOTP) {
+                // Unlock UI
+                document.getElementById('authPanel').classList.add('hidden');
+                document.getElementById('controlPanel').classList.remove('hidden');
+                
+                const status = document.getElementById('authStatus');
+                status.innerText = "Status: Online";
+                status.classList.replace('bg-slate-200', 'bg-emerald-100');
+                status.classList.replace('text-slate-500', 'text-emerald-700');
+            } else {
+                alert("Invalid Auth Token. Please try again.");
+            }
         }
 
-        async function getM() {
-            const u = document.getElementById('urlIn').value.trim();
-            const res = await fetch('/get_meta', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u}) });
-            const d = await res.json();
-            document.getElementById('vThmb').src = d.thumb;
-            document.getElementById('vTtl').textContent = d.title;
-            document.getElementById('dNum').value = d.total;
-            document.getElementById('vCard').classList.remove('hidden');
-            document.getElementById('dCtrl').classList.remove('hidden');
-            document.getElementById('dNum').focus();
-        }
+        // Analysis Logic
+        async function startAnalysis() {
+            const url = document.getElementById('videoUrl').value;
+            const depth = document.getElementById('depth').value;
+            const btn = document.getElementById('analyzeBtn');
+            
+            if(!url) { alert("Please enter a Video URL"); return; }
 
-        async function exec() {
-            const u = document.getElementById('urlIn').value.trim(), l = document.getElementById('dNum').value;
-            document.getElementById('loadUI').classList.remove('hidden');
-            document.getElementById('dataUI').classList.add('hidden');
-            const res = await fetch('/analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u, limit: l}) });
-            DATA = await res.json();
-            render(DATA);
-        }
-
-        function render(d) {
-            document.getElementById('pT').textContent = d.positive + "%";
-            document.getElementById('nT').textContent = d.negative + "%";
-            document.getElementById('pB').style.width = d.positive + "%";
-            document.getElementById('nB').style.width = d.negative + "%";
-            document.getElementById('fd').innerHTML = d.stream.map(c => `
-                <div class="flex gap-4 p-5 rounded-3xl bg-white border border-slate-100 ${c.is_neg ? 'neg-block' : ''} shadow-sm transition-all duration-500">
-                    <img src="${c.avatar}" class="w-10 h-10 rounded-full border-2 border-white">
-                    <div>
-                        <p class="text-[10px] font-black text-slate-800 uppercase tracking-tight">${c.author} ${c.explicit && !LOGGED ? '<span class="text-rose-600 ml-2 animate-pulse italic">[RESTRICTED ACCESS]</span>' : ''}</p>
-                        <p class="text-xs text-slate-600 leading-relaxed mt-1 ${c.explicit && !LOGGED ? 'blur-txt' : ''}">${c.html}</p>
-                    </div>
-                </div>`).join('');
-            document.getElementById('loadUI').classList.add('hidden');
+            // UI Reset
+            btn.innerText = "ANALYZING...";
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
             document.getElementById('dataUI').classList.remove('hidden');
+            document.getElementById('fd').innerHTML = '';
+            
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url, max_results: parseInt(depth) })
+                });
+                
+                const data = await response.json();
+                
+                if(data.error) {
+                    alert("Error: " + data.error);
+                    resetBtn(btn);
+                    return;
+                }
+
+                // Show Video Info
+                document.getElementById('videoInfo').classList.remove('hidden');
+                document.getElementById('thumb').src = data.thumbnail;
+                document.getElementById('vidTitle').innerText = data.title;
+
+                // Update Progress Bars
+                document.getElementById('pT').innerText = data.positive_percentage + '%';
+                document.getElementById('nT').innerText = data.negative_percentage + '%';
+                document.getElementById('pB').style.width = data.positive_percentage + '%';
+                document.getElementById('nB').style.width = data.negative_percentage + '%';
+
+                // Populate Feed
+                const feed = document.getElementById('fd');
+                data.comments.forEach(c => {
+                    const el = document.createElement('div');
+                    // Style based on sentiment
+                    if(c.sentiment === 'Positive') {
+                        el.className = 'p-3 bg-blue-50 border-l-2 border-blue-500 text-sm text-slate-700 rounded-r-md';
+                    } else {
+                        el.className = 'p-3 bg-rose-50 border-l-2 border-rose-500 text-sm text-slate-700 rounded-r-md';
+                    }
+                    el.innerText = c.text;
+                    feed.appendChild(el);
+                });
+
+            } catch (err) {
+                alert("Connection failed. Check console for details.");
+                console.error(err);
+            }
+            
+            resetBtn(btn);
+        }
+
+        function resetBtn(btn) {
+            btn.innerText = "ANALYZE";
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
     </script>
 </body>
