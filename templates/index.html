@@ -72,7 +72,7 @@
                 <div id="dCtrl" class="hidden glass p-8 border-2 border-blue-50">
                     <label class="block text-[10px] font-bold text-blue-500 uppercase mb-2">No. of Comments</label>
                     <input type="number" id="dNum" class="w-full bg-blue-50 border-0 rounded-xl px-5 py-4 mb-4 outline-none font-black text-sm" placeholder="50">
-                    <button onclick="exec()" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl btn-press text-[10px] uppercase">Analyze Sentiment</button>
+                    <button onclick="exec()" id="analyzeBtn" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl btn-press text-[10px] uppercase transition-all">Analyze Sentiment</button>
                 </div>
             </aside>
 
@@ -98,7 +98,7 @@
     <script>
         let LOGGED = false, DATA = null;
 
-        // --- NEW: FULL ENTER KEY SUPPORT ---
+        // Enter Key Support
         document.getElementById('urlIn').addEventListener('keypress', (e) => { if(e.key === 'Enter') getM(); });
         document.getElementById('dNum').addEventListener('keypress', (e) => { if(e.key === 'Enter') exec(); });
         document.getElementById('uEmail').addEventListener('keypress', (e) => { if(e.key === 'Enter') reqOTP(); });
@@ -132,26 +132,62 @@
 
         async function getM() {
             const u = document.getElementById('urlIn').value.trim();
+            const btn = document.getElementById('cBtn');
             if(!u) return;
-            const res = await fetch('/get_meta', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u}) });
-            const d = await res.json();
-            if(d.error) return alert(d.error);
-            document.getElementById('vThmb').src = d.thumb;
-            document.getElementById('vTtl').textContent = d.title;
-            document.getElementById('dNum').value = d.total;
-            document.getElementById('vCard').classList.remove('hidden');
-            document.getElementById('dCtrl').classList.remove('hidden');
-            document.getElementById('dNum').focus();
+            
+            btn.innerText = "CONNECTING...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/get_meta', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u}) });
+                const d = await res.json();
+                if(d.error) {
+                    alert(d.error);
+                } else {
+                    document.getElementById('vThmb').src = d.thumb;
+                    document.getElementById('vTtl').textContent = d.title;
+                    document.getElementById('dNum').value = d.total;
+                    document.getElementById('vCard').classList.remove('hidden');
+                    document.getElementById('dCtrl').classList.remove('hidden');
+                    document.getElementById('dNum').focus();
+                }
+            } catch(e) {
+                console.error(e);
+            }
+            
+            btn.innerText = "CONNECT";
+            btn.disabled = false;
         }
 
         async function exec() {
-            const u = document.getElementById('urlIn').value.trim(), l = document.getElementById('dNum').value;
+            const u = document.getElementById('urlIn').value.trim();
+            const l = document.getElementById('dNum').value;
+            const btn = document.getElementById('analyzeBtn');
+
             if(!u || !l) return;
+            
+            btn.innerText = "MINING...";
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+
             document.getElementById('loadUI').classList.remove('hidden');
             document.getElementById('dataUI').classList.add('hidden');
-            const res = await fetch('/analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u, limit: l}) });
-            DATA = await res.json();
-            render(DATA);
+            
+            try {
+                const res = await fetch('/analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({url: u, limit: l}) });
+                DATA = await res.json();
+                if(DATA.error) {
+                    alert(DATA.error);
+                } else {
+                    render(DATA);
+                }
+            } catch(e) {
+                console.error(e);
+            }
+
+            btn.innerText = "ANALYZE SENTIMENT";
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
 
         function render(d) {
@@ -159,6 +195,7 @@
             document.getElementById('nT').textContent = d.negative + "%";
             document.getElementById('pB').style.width = d.positive + "%";
             document.getElementById('nB').style.width = d.negative + "%";
+            
             document.getElementById('fd').innerHTML = d.stream.map(c => `
                 <div class="flex gap-4 p-5 rounded-3xl bg-white border border-slate-100 ${c.is_neg ? 'neg-block' : ''} shadow-sm">
                     <img src="${c.avatar}" class="w-10 h-10 rounded-full border-2 border-white">
@@ -167,6 +204,7 @@
                         <p class="text-xs text-slate-600 leading-relaxed mt-1 ${c.explicit && !LOGGED ? 'blur-txt' : ''}">${c.html}</p>
                     </div>
                 </div>`).join('');
+                
             document.getElementById('loadUI').classList.add('hidden');
             document.getElementById('dataUI').classList.remove('hidden');
         }

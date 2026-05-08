@@ -4,7 +4,8 @@ import random
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, jsonify
 from googleapiclient.discovery import build
-# Ensure your words.py file is in the same directory
+
+# Import the custom dictionaries
 from words import positive_words, negative_words, explicit_words, intensifiers, negations
 
 load_dotenv() 
@@ -17,19 +18,18 @@ active_otps = {}
 
 def analyze_and_highlight(text):
     if not text: return None
-    # Remove HTML tags that YouTube might include
+    # Strip basic HTML
     clean_text = re.sub('<[^<]+?>', '', text)
     words = clean_text.split()
     p_pts, n_pts = 0, 0
     highlighted_words = []
     
-    # Check for explicit content
     is_explicit = any(re.sub(r'\W+', '', w.lower()) in explicit_words for w in words)
 
     for i, word in enumerate(words):
         clean = re.sub(r'\W+', '', word.lower())
-        is_negated = i > 0 and words[i-1].lower() in negations
-        weight = 2.0 if i > 0 and words[i-1].lower() in intensifiers else 1.0
+        is_negated = i > 0 and re.sub(r'\W+', '', words[i-1].lower()) in negations
+        weight = 2.0 if i > 0 and re.sub(r'\W+', '', words[i-1].lower()) in intensifiers else 1.0
         
         display = word
         if clean in positive_words:
@@ -57,9 +57,10 @@ def analyze_and_highlight(text):
     }
 
 def extract_id(url):
-    # Handles search params and direct paths (shorts/mobile)
-    pattern = r'(?:v=|\/|be\/)([0-9A-Za-z_-]{11})'
-    match = re.search(pattern, url)
+    from urllib.parse import urlparse, parse_qs
+    v_id = parse_qs(urlparse(url).query).get('v')
+    if v_id: return v_id[0]
+    match = re.search(r'([a-zA-Z0-9_-]{11})', urlparse(url).path)
     return match.group(1) if match else None
 
 @app.route('/')
@@ -82,18 +83,20 @@ def get_meta():
     v_id = extract_id(data.get('url', ''))
     if not v_id: return jsonify({"error": "Invalid URL"})
     
-    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-    v_resp = youtube.videos().list(part="snippet,statistics", id=v_id).execute()
-    
-    if not v_resp['items']:
-        return jsonify({"error": "Video not found"})
-        
-    item = v_resp['items'][0]
-    return jsonify({
-        "title": item['snippet']['title'],
-        "thumb": item['snippet']['thumbnails']['high']['url'],
-        "total": int(item['statistics'].get('commentCount', 0))
-    })
+    try:
+        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+        v_resp = youtube.videos().list(part="snippet,statistics", id=v_id).execute()
+        if not v_resp['items']:
+            return jsonify({"error": "Video not found"})
+            
+        item = v_resp['items'][0]
+        return jsonify({
+            "title": item['snippet']['title'],
+            "thumb": item['snippet']['thumbnails']['high']['url'],
+            "total": int(item['statistics'].get('commentCount', 0))
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -102,15 +105,15 @@ def analyze():
     v_id = extract_id(v_url)
     limit = int(data.get('limit', 100))
     
-    youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-    comments_data, next_token = [], None
-    
     try:
+        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+        comments_data, next_token = [], None
+        
         while len(comments_data) < limit:
             res = youtube.commentThreads().list(
                 part="snippet", 
                 videoId=v_id, 
-                maxResults=100, 
+                maxResults=min(100, limit - len(comments_data)), 
                 pageToken=next_token,
                 textFormat='plainText'
             ).execute()
@@ -122,7 +125,6 @@ def analyze():
                     "avatar": snippet["authorProfileImageUrl"], 
                     "text": snippet["textDisplay"]
                 })
-                if len(comments_data) >= limit: break
                 
             next_token = res.get('nextPageToken')
             if not next_token: break
