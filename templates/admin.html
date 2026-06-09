@@ -1,0 +1,109 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="glass p-8 mb-8 border-t-4 border-slate-900 shadow-xl animate-fade-in">
+    <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+        <div>
+            <h2 class="font-black italic text-2xl uppercase tracking-wider text-slate-800">Admin Control Center</h2>
+            <p class="text-xs text-slate-500 font-bold mt-1">Manage System Users, Roles, and Tiered Credits</p>
+        </div>
+        <div>
+            <span class="bg-rose-100 text-rose-700 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest border border-rose-200 shadow-sm animate-pulse">
+                God Mode Active
+            </span>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="border-b-2 border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-black">
+                    <th class="p-4">User Email</th>
+                    <th class="p-4">Credits Remaining</th>
+                    <th class="p-4">Current Authorization</th>
+                    <th class="p-4 text-right">Actions (Modify Permissions)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
+                    <td class="p-4 font-bold text-slate-700 text-sm">
+                        {{ u.email }}
+                        {% if u.email.lower() == super_admin %}
+                            <span class="ml-2 text-[9px] bg-slate-900 text-white px-2 py-0.5 rounded-full uppercase tracking-widest font-black">Owner</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-4 font-black text-blue-600 text-sm">{{ u.credits }}</td>
+                    <td class="p-4">
+                        {% if u.role == 'admin' %}
+                            <span class="text-[10px] font-black bg-rose-100 text-rose-700 px-3 py-1 rounded-full border border-rose-200 uppercase tracking-wider">Admin</span>
+                        {% elif u.role == 'premium' %}
+                            <span class="text-[10px] font-black bg-purple-100 text-purple-700 px-3 py-1 rounded-full border border-purple-200 uppercase tracking-wider">Premium</span>
+                        {% elif u.role == 'pro' %}
+                            <span class="text-[10px] font-black bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200 uppercase tracking-wider">Pro</span>
+                        {% else %}
+                            <span class="text-[10px] font-black bg-slate-100 text-slate-500 px-3 py-1 rounded-full border border-slate-200 uppercase tracking-wider">Free Tier</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-4 text-right">
+                        {% if u.email.lower() != super_admin %}
+                        <select onchange="changeRole('{{ u.email }}', this.value)" class="text-xs font-bold p-2 rounded-xl border border-slate-200 focus:outline-none focus:border-blue-500 bg-white cursor-pointer uppercase tracking-wide text-slate-700 shadow-sm">
+                            <option value="" disabled selected>Alter Authorization...</option>
+                            <option value="free">Downgrade to Free (1,000 Credits)</option>
+                            <option value="pro">Upgrade to Pro (4,999 Credits)</option>
+                            <option value="premium">Upgrade to Premium (10,000 Credits)</option>
+                            <option value="admin">Promote to Admin (10,000 Credits)</option>
+                        </select>
+                        {% else %}
+                        <span class="text-xs text-slate-400 italic font-bold pr-4">Immutable Authority</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    console.log("=========================================");
+    console.log("Terminal Output Mandate (Admin Dashboard):");
+    console.log("Name: Mrinal Dashora");
+    console.log("Roll Number: 24BCON1413");
+    console.log("=========================================");
+
+    async function changeRole(email, newRole) {
+        if(!confirm(`System Action Confirmation: Change authorization level of ${email} to ${newRole.toUpperCase()}?`)) {
+            location.reload();
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/update_user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: email, role: newRole})
+            });
+            const data = await res.json();
+            
+            if(data.error) {
+                alert(data.error);
+                location.reload();
+            } else {
+                alert(data.message);
+                location.reload(); 
+            }
+        } catch(e) {
+            alert("Network Error: Action interrupted.");
+        }
+    }
+</script>
+
+<style>
+    .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}

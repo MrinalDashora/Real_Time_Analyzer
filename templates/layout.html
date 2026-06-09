@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CogniSense | AI Strategist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght=300;600;900&display=swap');
+        body { background: #f8fafc; font-family: 'Outfit', sans-serif; }
+        .glass { background: white; border-radius: 24px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-12">
+    <!-- Intelligent Navbar -->
+    <nav class="max-w-6xl mx-auto mb-8 flex flex-col sm:flex-row justify-between items-center glass p-6 shadow-sm border-b-4 border-slate-900">
+        <h1 class="text-xl font-black uppercase italic tracking-widest text-slate-900 mb-4 sm:mb-0">CogniSense</h1>
+        
+        <div class="flex items-center space-x-6 text-xs font-bold uppercase text-slate-500 tracking-wider">
+            {% if session.get('user') %}
+                <!-- Logged In State -->
+                <a href="/studio" class="hover:text-blue-600 transition-colors">Studio</a>
+                
+                <!-- NEW PRICING LINK ADDED HERE -->
+                <a href="/pricing" class="hover:text-purple-600 transition-colors">Pricing</a>
+                
+                <span class="px-3 py-1 bg-slate-100 rounded-full text-slate-700 font-black border border-slate-200">
+                    🪙 <span id="nav-credits">{{ session.get('credits') }}</span> Credits
+                </span>
+
+                <!-- Bulletproof Role Badge Logic -->
+                {% if session.get('role') == 'admin' %}
+                    <span class="text-rose-600 border border-rose-200 bg-rose-50 px-2 py-1 rounded font-black tracking-widest">👑 Admin</span>
+                    <a href="/admin" class="hover:text-rose-600 text-rose-600 font-black transition-colors border-l-2 border-slate-200 pl-4 ml-2 flex items-center gap-1">
+                        ⚙️ ADMIN PANEL
+                    </a>
+                {% elif session.get('role') == 'premium' %}
+                    <span class="text-purple-600 border border-purple-200 bg-purple-50 px-2 py-1 rounded font-black tracking-widest">💎 Premium</span>
+                {% elif session.get('role') == 'pro' %}
+                    <span class="text-blue-600 border border-blue-200 bg-blue-50 px-2 py-1 rounded font-black tracking-widest">⚡ Pro</span>
+                {% else %}
+                    <span class="text-slate-500 border border-slate-200 bg-slate-50 px-2 py-1 rounded font-black tracking-widest">Free Tier</span>
+                {% endif %}
+
+                <a href="/logout" class="text-rose-500 hover:text-rose-700 transition-colors border-l border-slate-200 pl-4">Logout</a>
+            {% else %}
+                <!-- Logged Out State -->
+                <a href="/" class="hover:text-blue-600 transition-colors">Home</a>
+                <a href="/pricing" class="hover:text-purple-600 transition-colors">Pricing</a>
+                <a href="/login" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">Login / Sign Up</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Page Content will be injected here -->
+    <main class="max-w-6xl mx-auto">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

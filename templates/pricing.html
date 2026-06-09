@@ -1,0 +1,197 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto py-12 animate-fade-in relative">
+    <div class="text-center mb-12">
+        <h2 class="font-black italic text-4xl uppercase tracking-widest text-slate-900 mb-4">Upgrade Your Arsenal</h2>
+        <p class="text-slate-500 font-bold">Stop guessing. Start dominating the YouTube Algorithm with calculated precision.</p>
+    </div>
+
+    <!-- 3-Column Tier System -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        <!-- FREE TIER -->
+        <div class="glass p-8 border-t-4 border-slate-300 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+            <div>
+                <h3 class="font-black text-2xl uppercase text-slate-800 mb-2">Starter</h3>
+                <p class="text-3xl font-black text-slate-900 mb-6">₹0 <span class="text-sm text-slate-400 font-bold">/ forever</span></p>
+                <ul class="space-y-4 mb-8 text-sm font-bold text-slate-600">
+                    <li class="flex items-center gap-2"><span class="text-emerald-500">✔</span> <b>1,000</b> Initial Credits</li>
+                    <li class="flex items-center gap-2"><span class="text-emerald-500">✔</span> Basic Pulse Stream</li>
+                    <li class="flex items-center gap-2"><span class="text-emerald-500">✔</span> Standard Channel Audit</li>
+                    <li class="flex items-center gap-2 opacity-50"><span class="text-rose-500">✖</span> Deep Consult Engine</li>
+                </ul>
+            </div>
+            {% if not session.get('user') %}
+                <a href="/login" class="block w-full text-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-4 rounded-xl transition uppercase tracking-wider">Start Free</a>
+            {% elif session.get('role') == 'free' %}
+                <button disabled class="w-full bg-slate-100 text-slate-400 font-black py-4 rounded-xl uppercase tracking-wider cursor-not-allowed border border-slate-200">Current Plan</button>
+            {% else %}
+                <button disabled class="w-full bg-slate-50 text-slate-300 font-black py-4 rounded-xl uppercase tracking-wider cursor-not-allowed">Included</button>
+            {% endif %}
+        </div>
+
+        <!-- PRO TIER -->
+        <div class="glass p-8 border-t-4 border-blue-500 shadow-md flex flex-col justify-between">
+            <div>
+                <h3 class="font-black text-2xl uppercase text-blue-600 mb-2 flex items-center gap-2">Pro ⚡</h3>
+                <p class="text-3xl font-black text-slate-900 mb-6">₹499 <span class="text-sm text-slate-400 font-bold">/ month</span></p>
+                <ul class="space-y-4 mb-8 text-sm font-bold text-slate-600">
+                    <li class="flex items-center gap-2"><span class="text-blue-500">✔</span> <b>4,999</b> Monthly Credits</li>
+                    <li class="flex items-center gap-2"><span class="text-blue-500">✔</span> Advanced Pulse Stream</li>
+                    <li class="flex items-center gap-2"><span class="text-blue-500">✔</span> Full Channel Audits</li>
+                    <li class="flex items-center gap-2"><span class="text-blue-500 font-black">✔</span> Deep Consult Engine Unlocked</li>
+                </ul>
+            </div>
+            {% if not session.get('user') %}
+                <a href="/login" class="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-wider">Login to Upgrade</a>
+            {% elif session.get('role') == 'pro' %}
+                <button disabled class="w-full bg-emerald-100 text-emerald-700 border border-emerald-200 font-black py-4 rounded-xl uppercase tracking-wider flex justify-center items-center gap-2 cursor-not-allowed"><span>✔</span> Active Plan</button>
+            {% elif session.get('role') in ['premium', 'admin'] %}
+                <button disabled class="w-full bg-slate-50 text-slate-300 font-black py-4 rounded-xl uppercase tracking-wider cursor-not-allowed">Included in Higher Plan</button>
+            {% else %}
+                <button onclick="openUPIModal('pro', 499)" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-wider flex justify-center items-center gap-2">
+                    Pay ₹499 via UPI
+                </button>
+            {% endif %}
+        </div>
+
+        <!-- PREMIUM TIER (MAX) -->
+        <div class="glass p-8 border-t-4 border-purple-500 shadow-xl relative transform md:-translate-y-4 flex flex-col justify-between bg-white z-10">
+            <div class="absolute top-0 right-0 bg-purple-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-lg rounded-tr-xl">Max Cap</div>
+            <div>
+                <h3 class="font-black text-2xl uppercase text-purple-700 mb-2 flex items-center gap-2">Premium 💎</h3>
+                <p class="text-3xl font-black text-slate-900 mb-6">₹999 <span class="text-sm text-slate-400 font-bold">/ month</span></p>
+                <ul class="space-y-4 mb-8 text-sm font-bold text-slate-600">
+                    <li class="flex items-center gap-2"><span class="text-purple-500">✔</span> <b>10,000</b> Monthly Credits (Max)</li>
+                    <li class="flex items-center gap-2"><span class="text-purple-500">✔</span> Unrestricted Processing</li>
+                    <li class="flex items-center gap-2"><span class="text-purple-500 font-black">✔</span> Deep Consult Engine Unlocked</li>
+                    <li class="flex items-center gap-2"><span class="text-purple-500 font-black">✔</span> AI Predictive Blueprints</li>
+                </ul>
+            </div>
+            {% if not session.get('user') %}
+                <a href="/login" class="block w-full text-center bg-purple-600 hover:bg-purple-700 text-white font-black py-4 rounded-xl transition shadow-lg shadow-purple-200 uppercase tracking-wider">Login to Upgrade</a>
+            {% elif session.get('role') == 'premium' %}
+                <button disabled class="w-full bg-emerald-100 text-emerald-700 border border-emerald-200 font-black py-4 rounded-xl uppercase tracking-wider flex justify-center items-center gap-2 cursor-not-allowed"><span>✔</span> Active Plan</button>
+            {% elif session.get('role') == 'admin' %}
+                <button disabled class="w-full bg-slate-900 text-white font-black py-4 rounded-xl uppercase tracking-wider flex justify-center items-center gap-2 cursor-not-allowed"><span>👑</span> Admin Mode</button>
+            {% else %}
+                <button onclick="openUPIModal('premium', 999)" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-4 rounded-xl transition shadow-lg shadow-purple-200 uppercase tracking-wider flex justify-center items-center gap-2">
+                    Pay ₹999 via UPI
+                </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- REAL UPI PAYMENT MODAL -->
+<div id="upiModal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+    <div class="glass max-w-md w-full p-8 shadow-2xl relative">
+        <button onclick="closeUPIModal()" class="absolute top-4 right-4 text-slate-400 hover:text-rose-500 font-black text-xl">&times;</button>
+        
+        <div class="text-center mb-6">
+            <h3 class="font-black italic text-2xl uppercase tracking-widest text-slate-800" id="modalTitle">Upgrade to Premium</h3>
+            <p class="text-sm font-bold text-slate-500">Scan QR or Pay via App</p>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border-2 border-slate-200 flex justify-center mb-6 shadow-inner">
+            <img id="qrCodeImage" src="" alt="UPI QR Code" class="w-48 h-48 rounded-lg">
+        </div>
+        
+        <!-- Mobile Direct Intent Button -->
+        <a id="mobilePayBtn" href="#" class="block w-full text-center bg-slate-800 hover:bg-slate-900 text-white font-black py-3 rounded-xl mb-6 transition shadow-md uppercase tracking-wider sm:hidden">
+            Open UPI App (GPay/PhonePe)
+        </a>
+
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-6">
+            <p class="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2">Step 2: Verify Payment</p>
+            <input type="text" id="utrInput" placeholder="Enter 12-digit UTR / Ref Number" class="w-full p-3 border border-blue-200 rounded-lg text-sm font-bold focus:outline-none focus:border-blue-500 bg-white mb-3">
+            <button onclick="submitUPIPayment()" id="verifyBtn" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 rounded-lg transition uppercase tracking-wider shadow-sm">
+                Verify & Unlock
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    console.log("=========================================");
+    console.log("Terminal Output Mandate (UPI Gateway):");
+    console.log("Name: Mrinal Dashora");
+    console.log("Roll Number: 24BCON1413");
+    console.log("=========================================");
+
+    // ==========================================
+    // ⚠️ ENTER YOUR ACTUAL UPI DETAILS HERE ⚠️
+    // ==========================================
+    const MY_UPI_ID = "mrinaldashora@oksbi"; // Replace with your PhonePe/GPay UPI ID
+    const MY_NAME = "mrinaldashora"; // Business Name to show on user's app
+    // ==========================================
+
+    let selectedPlan = '';
+
+    function openUPIModal(plan, amount) {
+        selectedPlan = plan;
+        document.getElementById('modalTitle').innerText = `Upgrade to ${plan.toUpperCase()}`;
+        document.getElementById('utrInput').value = '';
+        
+        // Generate Standard UPI String
+        const upiString = `upi://pay?pa=${MY_UPI_ID}&pn=${encodeURIComponent(MY_NAME)}&am=${amount}&cu=INR`;
+        
+        // Generate QR Code using free API
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiString)}`;
+        document.getElementById('qrCodeImage').src = qrUrl;
+        
+        // Set Mobile Intent Link
+        document.getElementById('mobilePayBtn').href = upiString;
+        
+        document.getElementById('upiModal').classList.remove('hidden');
+    }
+
+    function closeUPIModal() {
+        document.getElementById('upiModal').classList.add('hidden');
+    }
+
+    async function submitUPIPayment() {
+        const utr = document.getElementById('utrInput').value.trim();
+        if(utr.length < 8) {
+            alert("Please enter a valid Transaction ID (UTR) from your payment app.");
+            return;
+        }
+
+        const btn = document.getElementById('verifyBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `Verifying...`;
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/checkout', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({plan: selectedPlan, utr: utr})
+            });
+            const data = await res.json();
+
+            if(data.error) {
+                alert(data.error);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            } else {
+                btn.innerHTML = `Payment Verified!`;
+                setTimeout(() => { window.location.href = data.redirect; }, 1000);
+            }
+        } catch(e) {
+            alert("Network Error.");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+</script>
+
+<style>
+    .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}
