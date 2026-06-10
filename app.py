@@ -209,19 +209,20 @@ def checkout():
     if session.get('role') == 'admin': return jsonify({"error": "You are a Super Admin! You already have maximum access."})
     
     data = request.get_json()
-    plan = data.get('plan', '')
+    plan = str(data.get('plan', '')).strip()  # String mein convert kiya taaki '49' ya 49 dono chalein
     utr = data.get('utr', '').strip()
     email = session['user']
     
-    # Basic UTR validation (Usually 12 digits in India)
+    # Basic UTR validation
     if not utr or len(utr) < 8:
         return jsonify({"error": "Invalid UTR. Please enter the correct Transaction ID from your UPI app."})
     
-    if plan == 'pro':
+    # Naye 49 aur 99 pricing plans ki mapping
+    if plan in ['pro', '49']:
         new_credits = 4999
         new_role = 'pro'
         msg = "Welcome to CogniSense PRO ⚡"
-    elif plan == 'premium':
+    elif plan in ['premium', '99']:
         new_credits = 10000
         new_role = 'premium'
         msg = "Welcome to CogniSense PREMIUM 💎"
