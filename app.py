@@ -27,81 +27,74 @@ app.secret_key = os.getenv("SECRET_KEY", "cognisense_master_key_123")
 # --- HELPERS & AI ENGINES ---
 def analyze_sentiment_via_gemini(comments_list):
     api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        print("[ERROR] GEMINI_API_KEY is missing in Render environment!")
-        return 34, 33, 33
+    if not api_key: return 34, 33, 33
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
-    
-    # Passing only top 100 for exact percentage to prevent Gemini Token limit crash
     formatted_comments = "\n".join([f"- {c}" for c in comments_list[:100]])
     
     prompt = f"""
-    Analyze the sentiment of the following YouTube comments. They contain English, Hindi, and Hinglish slang (e.g., 'mast', 'bakwas', 'op', 'gajab', 'maza aya').
+    Analyze the sentiment of the following YouTube comments. They contain English, Hindi, and Hinglish slang.
     Calculate the exact distribution percentage of Positive, Negative, and Neutral sentiment out of the total.
-    Return ONLY a valid JSON object with keys "positive", "negative", and "neutral" as integer percentages summing to 100. Do not include markdown codeblocks or triquetra.
+    Return ONLY a valid JSON object with keys "positive", "negative", and "neutral" as integer percentages summing to 100.
     
     Comments:
     {formatted_comments}
     """
-    
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"responseMimeType": "application/json"}
-    }
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}}
     
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=25)
-        res_data = response.json()
-        raw_text = res_data['candidates'][0]['content']['parts'][0]['text']
-        
+        raw_text = response.json()['candidates'][0]['content']['parts'][0]['text']
         sentiment = json.loads(raw_text.strip())
-        return (
-            int(sentiment.get('positive', 0)),
-            int(sentiment.get('negative', 0)),
-            int(sentiment.get('neutral', 0))
-        )
+        return int(sentiment.get('positive', 0)), int(sentiment.get('negative', 0)), int(sentiment.get('neutral', 0))
     except Exception as e:
-        print(f"[Gemini API Error] {e}. Falling back to default baseline split.")
+        print(f"[Gemini API Error] {e}")
         return 40, 40, 20
 
 def send_otp_email(to_email, otp):
-    api_key = os.getenv("BREVO_API_KEY")
+    brevo_key = os.getenv("BREVO_API_KEY")
     sender_email = os.getenv("MAIL_USERNAME")
-
-    url = "https://api.brevo.com/v3/smtp/email"
-    headers = {
-        "accept": "application/json",
-        "api-key": api_key,
-        "content-type": "application/json"
-    }
+    sender_pass = os.getenv("MAIL_PASSWORD") # For Gmail SMTP Fallback
     
-    data = {
-        "sender": {"email": sender_email, "name": "CogniSense Security"},
-        "to": [{"email": to_email}],
-        "subject": "CogniSense Login OTP",
-        "htmlContent": f"""
-        <div style='font-family: Arial, sans-serif; padding: 20px;'>
-            <h2>Welcome to CogniSense</h2>
-            <p>Your secure Login OTP is: <b>{otp}</b></p>
-            <p>It will expire in 5 minutes. Do not share this with anyone.</p>
-        </div>
-        """
-    }
+    # --- PLAN A: BREVO API ---
+    if brevo_key and sender_email:
+        try:
+            url = "https://api.brevo.com/v3/smtp/email"
+            headers = {"accept": "application/json", "api-key": brevo_key, "content-type": "application/json"}
+            data = {
+                "sender": {"email": sender_email, "name": "CogniSense Security"},
+                "to": [{"email": to_email}],
+                "subject": "CogniSense Login OTP",
+                "htmlContent": f"<div style='padding:20px;'><h2>Welcome</h2><p>Your secure Login OTP is: <b>{otp}</b></p></div>"
+            }
+            res = requests.post(url, json=data, headers=headers)
+            if res.status_code in [200, 201]: 
+                print("[LOG] OTP sent via Brevo.")
+                return True
+            else: print(f"[Brevo Warning] {res.text}")
+        except Exception as e: print(f"[Brevo Crash] {e}")
 
-    try:
-        response = requests.post(url, json=data, headers=headers)
-        if response.status_code in [200, 201]: return True
-        else:
-            print(f"API Error: {response.text}")
-            return False
-    except Exception as e:
-        print(f"Code Error: {e}")
-        return False
+    # --- PLAN B: GMAIL SMTP FALLBACK ---
+    if sender_email and sender_pass:
+        try:
+            msg = EmailMessage()
+            msg['Subject'] = 'CogniSense Login OTP'
+            msg['From'] = sender_email
+            msg['To'] = to_email
+            msg.set_content(f"Your secure Login OTP is: {otp}\nIt will expire in 5 minutes.")
+            
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                smtp.login(sender_email, sender_pass)
+                smtp.send_message(msg)
+            print("[LOG] OTP sent via SMTP Fallback.")
+            return True
+        except Exception as e: print(f"[SMTP Crash] {e}")
+            
+    print("[CRITICAL ERROR] Failed to send email. Check API keys and App Passwords on Render.")
+    return False
 
 def analyze_sentiment(text):
-    # Extremely fast local mapping for the thousands of fetched comments
     text_lower = text.lower()
     pos_emojis = ['😂', '❤️', '🔥', '😍', '🙌', '👏', '😊', '👍', '♥️', '🥰', '🤣', '💯', '👌']
     neg_emojis = ['😡', '🤮', '👎', '🤬', '💔', '😭', '🤦‍♂️', '💩', '👎🏻', 'sick']
@@ -109,18 +102,15 @@ def analyze_sentiment(text):
     if any(e in text for e in pos_emojis): return "positive", 0.6
     if any(e in text for e in neg_emojis): return "negative", -0.6
         
-    pos_words = ["mast", "kadak", "op", "super", "best", "legend", "goat", "love", "amazing", "awesome", "bhai", "ek number", "jhakaas"]
-    neg_words = ["bakwas", "ghatiya", "bekar", "tatti", "cringe", "fake", "hate", "scam", "chutiya", "worst", "gandi", "trash", "boring"]
+    pos_words = ["mast", "kadak", "op", "super", "best", "legend", "goat", "love", "amazing", "awesome", "bhai", "jhakaas"]
+    neg_words = ["bakwas", "ghatiya", "bekar", "tatti", "cringe", "fake", "hate", "scam", "chutiya", "worst", "trash", "boring"]
     
-    for ex in ["harsh", "hardik"]: text_lower = re.sub(rf'\b{ex}\b', '', text_lower)
     for pw in pos_words:
         if re.search(rf'\b{pw}\b', text_lower): return "positive", 0.5
     for nw in neg_words:
         if re.search(rf'\b{nw}\b', text_lower): return "negative", -0.5
         
-    analysis = TextBlob(text_lower)
-    polarity = analysis.sentiment.polarity
-    
+    polarity = TextBlob(text_lower).sentiment.polarity
     if polarity > 0.15: return "positive", polarity
     elif polarity < -0.15: return "negative", polarity
     else: return "neutral", polarity
@@ -131,72 +121,44 @@ def extract_id(url):
 
 def extract_channel_query(url_or_id):
     url_or_id = url_or_id.strip()
-    if '@' in url_or_id:
-        handle = url_or_id.split('@')[-1].split('/')[0].split('?')[0]
-        return {"type": "forHandle", "value": handle}
-    elif 'channel/UC' in url_or_id:
-        cid = 'UC' + url_or_id.split('channel/UC')[-1].split('/')[0].split('?')[0]
-        return {"type": "id", "value": cid}
-    else:
-        return {"type": "id", "value": url_or_id}
+    if '@' in url_or_id: return {"type": "forHandle", "value": url_or_id.split('@')[-1].split('/')[0].split('?')[0]}
+    elif 'channel/UC' in url_or_id: return {"type": "id", "value": 'UC' + url_or_id.split('channel/UC')[-1].split('/')[0].split('?')[0]}
+    return {"type": "id", "value": url_or_id}
 
-# --- NEW VIDEO-BY-VIDEO CHANNEL AUDIT MATH ENGINE ---
 def get_recent_videos_stats(channel_url):
     yt_api_key = os.getenv("YOUTUBE_API_KEY")
-    if not yt_api_key: raise Exception("YOUTUBE_API_KEY is missing in Render environment.")
-
-    channel_id = None
     query_data = extract_channel_query(channel_url)
     
     if query_data["type"] == "forHandle":
-        search_url = f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=%40{query_data['value']}&key={yt_api_key}"
-        res = requests.get(search_url).json()
-        if 'items' in res and len(res['items']) > 0:
-            channel_id = res['items'][0]['snippet']['channelId']
-    else:
-        channel_id = query_data["value"]
+        res = requests.get(f"https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=%40{query_data['value']}&key={yt_api_key}").json()
+        channel_id = res['items'][0]['snippet']['channelId'] if 'items' in res and len(res['items']) > 0 else None
+    else: channel_id = query_data["value"]
     
     if not channel_id: raise Exception("Invalid Channel URL or Handle.")
 
-    channel_url_api = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id={channel_id}&key={yt_api_key}"
-    c_res = requests.get(channel_url_api).json()
-    if not c_res.get('items'): raise Exception("Channel details not found.")
-    uploads_playlist_id = c_res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+    c_res = requests.get(f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id={channel_id}&key={yt_api_key}").json()
+    uploads_id = c_res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
 
-    # Extract recent 12 videos to see individual video trajectory
-    playlist_url = f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={uploads_playlist_id}&maxResults=12&key={yt_api_key}"
-    p_res = requests.get(playlist_url).json()
-    
-    video_ids = []
-    titles = {}
+    p_res = requests.get(f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={uploads_id}&maxResults=12&key={yt_api_key}").json()
+    video_ids, titles = [], {}
     for item in p_res.get('items', []):
         vid = item['snippet']['resourceId']['videoId']
         video_ids.append(vid)
-        t = item['snippet']['title']
-        titles[vid] = t[:18] + "..." if len(t) > 18 else t
+        titles[vid] = item['snippet']['title'][:18] + "..."
 
-    if not video_ids: raise Exception("No videos found on this channel.")
-
-    vids_joined = ",".join(video_ids)
-    stats_url = f"https://www.googleapis.com/youtube/v3/videos?part=statistics&id={vids_joined}&key={yt_api_key}"
-    v_res = requests.get(stats_url).json()
-
-    labels, views_list, engagement_rate_list = [], [], []
+    v_res = requests.get(f"https://www.googleapis.com/youtube/v3/videos?part=statistics&id={','.join(video_ids)}&key={yt_api_key}").json()
+    labels, views_list, er_list = [], [], []
     
-    # Reverse to show chronological order (oldest to newest among the 12)
     for item in reversed(v_res.get('items', [])):
         vid = item['id']
         labels.append(titles[vid])
-        
         v = int(item['statistics'].get('viewCount', 0))
         l = int(item['statistics'].get('likeCount', 0))
         c = int(item['statistics'].get('commentCount', 0))
-        
         views_list.append(v)
-        rate = round(((l + c) / v * 100), 2) if v > 0 else 0
-        engagement_rate_list.append(rate)
+        er_list.append(round(((l + c) / v * 100), 2) if v > 0 else 0)
 
-    return labels, views_list, engagement_rate_list
+    return labels, views_list, er_list
 
 
 # --- MAIN API ROUTES ---
@@ -208,41 +170,21 @@ def channel_audit():
     print("[LOG] Executing Deep Channel Video-wise Audit Engine...")
     print("=========================================\n")
 
-    if 'user' not in session: return jsonify({"error": "Authentication required. Please login."})
+    if 'user' not in session: return jsonify({"error": "Authentication required."})
+    user_credits, user_role = session.get('credits', 0), session.get('role', 'free')
+
+    if user_credits < 50 and user_role != 'admin': return jsonify({"error": "Insufficient Credits. Requires 50 credits."})
     
-    user_credits = session.get('credits', 0)
-    user_role = session.get('role', 'free')
-    credit_cost = 50
-
-    if user_credits < credit_cost and user_role != 'admin':
-        return jsonify({"error": f"Insufficient Credits. This Deep Audit requires {credit_cost} credits."})
-        
-    data = request.get_json()
-    channel_url = data.get('url', '').strip()
-
-    if not channel_url: return jsonify({"error": "Please provide a valid YouTube channel URL."})
-
     try:
-        labels, views, engagement = get_recent_videos_stats(channel_url)
-        
+        labels, views, engagement = get_recent_videos_stats(request.get_json().get('url', '').strip())
         if user_role != 'admin':
-            new_credits = user_credits - credit_cost
-            session['credits'] = new_credits
+            session['credits'] -= 50
             conn = sqlite3.connect(database.DB_NAME)
-            conn.execute("UPDATE users SET credits = ? WHERE email = ?", (new_credits, session['user']))
+            conn.execute("UPDATE users SET credits = ? WHERE email = ?", (session['credits'], session['user']))
             conn.commit()
             conn.close()
-
-        return jsonify({
-            "status": "success",
-            "labels": labels,
-            "views": views,
-            "engagement": engagement,
-            "credits_left": session.get('credits')
-        })
-    except Exception as e:
-        print(f"[Audit Error] {str(e)}")
-        return jsonify({"error": str(e)})
+        return jsonify({"status": "success", "labels": labels, "views": views, "engagement": engagement, "credits_left": session['credits']})
+    except Exception as e: return jsonify({"error": str(e)})
 
 
 @app.route('/api/pulse-stream', methods=['POST'])
@@ -255,82 +197,49 @@ def pulse_stream():
 
     if 'user' not in session: return jsonify({"error": "Please login first."})
     
-    user_role = session.get('role', 'free')
-    user_credits = session.get('credits', 0)
-    
-    # Limits dynamically set based on Server Safety to prevent timeout
-    max_hard_limit = 1000 if user_role == 'free' else (3000 if user_role == 'pro' else 5000)
-    credit_cost = 10 if user_role == 'free' else (20 if user_role == 'pro' else 30)
+    user_role, user_credits = session.get('role', 'free'), session.get('credits', 0)
+    max_limit = 1000 if user_role == 'free' else (3000 if user_role == 'pro' else 5000)
+    cost = 10 if user_role == 'free' else (20 if user_role == 'pro' else 30)
         
-    if user_credits < credit_cost and user_role != 'admin':
-        return jsonify({"error": f"Insufficient Credits. Requires {credit_cost} credits."})
-        
-    data = request.get_json()
-    video_url = data.get('url', '')
-    video_id = extract_id(video_url)
+    if user_credits < cost and user_role != 'admin': return jsonify({"error": f"Insufficient Credits. Requires {cost} credits."})
     
+    video_id = extract_id(request.get_json().get('url', ''))
     if not video_id: return jsonify({"error": "Invalid YouTube URL."})
     
     try:
         youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+        fetched_comments, comment_stream, next_page_token = [], [], None
         
-        fetched_comments = []
-        comment_stream = []
-        next_page_token = None
-        
-        # AGGRESSIVE FETCH LOOP: Gathers all comments efficiently
         while True:
-            req = youtube.commentThreads().list(
-                part="snippet", 
-                videoId=video_id, 
-                maxResults=100, 
-                textFormat="plainText",
-                pageToken=next_page_token
-            )
+            req = youtube.commentThreads().list(part="snippet", videoId=video_id, maxResults=100, textFormat="plainText", pageToken=next_page_token)
             res = req.execute()
-            
             for item in res.get('items', []):
                 text = item['snippet']['topLevelComment']['snippet']['textDisplay']
                 fetched_comments.append(text)
-                
-                # Fast local mapping
                 sent, _ = analyze_sentiment(text)
                 comment_stream.append({"html": text, "sentiment": sent})
                 
             next_page_token = res.get('nextPageToken')
-            
-            if not next_page_token or len(fetched_comments) >= max_hard_limit:
-                break
+            if not next_page_token or len(fetched_comments) >= max_limit: break
         
-        if not fetched_comments: return jsonify({"error": "No comments found or API disabled."})
-        
+        if not fetched_comments: return jsonify({"error": "No comments found."})
         pos, neg, neu = analyze_sentiment_via_gemini(fetched_comments)
         
         if user_role != 'admin':
-            new_credits = user_credits - credit_cost
-            session['credits'] = new_credits
+            session['credits'] -= cost
             conn = sqlite3.connect(database.DB_NAME)
-            conn.execute("UPDATE users SET credits = ? WHERE email = ?", (new_credits, session['user']))
+            conn.execute("UPDATE users SET credits = ? WHERE email = ?", (session['credits'], session['user']))
             conn.commit()
             conn.close()
             
-        return jsonify({
-            "status": "success",
-            "positive": pos,
-            "negative": neg,
-            "neutral": neu,
-            "total_comments": len(fetched_comments),
-            "stream": comment_stream, # Returns the full array to the UI
-            "credits_left": session.get('credits')
-        })
-    except Exception as e:
-        return jsonify({"error": f"API Error: {str(e)}"})
+        return jsonify({"status": "success", "positive": pos, "negative": neg, "neutral": neu, "total_comments": len(fetched_comments), "stream": comment_stream, "credits_left": session['credits']})
+    except Exception as e: return jsonify({"error": f"API Error: {str(e)}"})
 
 
 # --- ADMIN & AUTH ROUTES ---
 @app.route('/admin')
 def admin_panel():
-    if 'user' not in session or session.get('role') != 'admin': return redirect(url_for('home'))
+    if session.get('role') != 'admin': return redirect(url_for('home'))
     conn = database.get_db()
     users = conn.execute("SELECT * FROM users").fetchall()
     conn.close()
@@ -338,23 +247,17 @@ def admin_panel():
 
 @app.route('/api/update_user', methods=['POST'])
 def update_user():
-    if 'user' not in session or session.get('role') != 'admin': return jsonify({"error": "Unauthorized Access"}), 403
+    if session.get('role') != 'admin': return jsonify({"error": "Unauthorized Access"}), 403
     data = request.get_json()
-    target_email = data.get('email')
-    new_role = data.get('role')
-    super_admin = os.getenv("SUPER_ADMIN_EMAIL").lower()
-    if target_email.lower() == super_admin and new_role != 'admin': return jsonify({"error": "System Security: You cannot demote the Super Admin!"})
-    try:
-        conn = sqlite3.connect(database.DB_NAME)
-        if new_role == 'admin': new_credits = 10000
-        elif new_role == 'premium': new_credits = 10000
-        elif new_role == 'pro': new_credits = 4999
-        else: new_credits = 1000 
-        conn.execute("UPDATE users SET role = ?, credits = ? WHERE email = ?", (new_role, new_credits, target_email))
-        conn.commit()
-        conn.close()
-        return jsonify({"status": "success", "message": f"{target_email} is now {new_role.upper()}"})
-    except Exception as e: return jsonify({"error": str(e)})
+    target_email, new_role = data.get('email'), data.get('role')
+    if target_email.lower() == os.getenv("SUPER_ADMIN_EMAIL").lower() and new_role != 'admin': return jsonify({"error": "Security: Cannot demote Super Admin!"})
+    
+    conn = sqlite3.connect(database.DB_NAME)
+    new_credits = 10000 if new_role in ['admin', 'premium'] else (4999 if new_role == 'pro' else 1000)
+    conn.execute("UPDATE users SET role = ?, credits = ? WHERE email = ?", (new_role, new_credits, target_email))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "success", "message": f"{target_email} is now {new_role.upper()}"})
 
 @app.route('/')
 def home(): return render_template('studio.html')
@@ -370,52 +273,42 @@ def login():
 
     # --- ADMIN VIP BYPASS ---
     if admin_email and email.lower() == admin_email.lower():
-        database.update_otp(email, "ADMIN_BYPASS") # User record ready
+        database.update_otp(email, "ADMIN_BYPASS")
         return jsonify({"status": "success", "message": "Admin Access: Enter Master Password instead of OTP."})
 
     # --- REGULAR USERS ---
     otp = str(random.randint(100000, 999999))
     database.update_otp(email, otp)
+    
     if send_otp_email(email, otp): return jsonify({"status": "success", "message": "OTP sent to your email!"})
-    else: return jsonify({"status": "error", "message": "Failed to send OTP."})
+    else: return jsonify({"status": "error", "message": "Failed to send OTP. Check Backend configuration."})
 
 
 @app.route('/verify', methods=['POST'])
 def verify_post():
     email = request.form.get('email')
     user_otp = request.form.get('otp')
-    
     admin_email = os.getenv("SUPER_ADMIN_EMAIL")
-    # Agar tune .env me ADMIN_PASSWORD nahi daala h, to default password 'Admin@123' rahega
-    admin_password = os.getenv("ADMIN_PASSWORD", "Mrinal@2006") 
+    admin_password = os.getenv("ADMIN_PASSWORD", "Admin@123") 
     
-    # --- ADMIN VERIFICATION LOGIC ---
+    # --- ADMIN VERIFICATION ---
     if admin_email and email.lower() == admin_email.lower():
         if user_otp == admin_password:
             conn = sqlite3.connect(database.DB_NAME)
             conn.execute("UPDATE users SET role = 'admin', credits = 10000 WHERE email = ?", (email,))
             conn.commit()
             conn.close()
-            user = database.get_user(email)
-            session['user'] = email
-            session['role'] = user['role']
-            session['credits'] = user['credits']
+            session['user'], session['role'], session['credits'] = email, 'admin', 10000
             return jsonify({"status": "success", "redirect": url_for('home')})
-        else:
-            return jsonify({"status": "error", "message": "Invalid Admin Password!"})
+        return jsonify({"status": "error", "message": "Invalid Admin Password!"})
 
-    # --- REGULAR USER VERIFICATION LOGIC ---
+    # --- REGULAR USER VERIFICATION ---
     user = database.get_user(email)
     if user:
-        expiry_time = datetime.strptime(user['otp_expiry'], "%Y-%m-%d %H:%M:%S.%f")
-        if datetime.now() > expiry_time: return jsonify({"status": "error", "message": "OTP expired."})
-        
+        if datetime.now() > datetime.strptime(user['otp_expiry'], "%Y-%m-%d %H:%M:%S.%f"): return jsonify({"status": "error", "message": "OTP expired."})
         if user['otp'] == user_otp:
-            session['user'] = email
-            session['role'] = user['role']
-            session['credits'] = user['credits']
+            session['user'], session['role'], session['credits'] = email, user['role'], user['credits']
             return jsonify({"status": "success", "redirect": url_for('home')})
-            
     return jsonify({"status": "error", "message": "Invalid OTP!"})
 
 @app.route('/logout')
@@ -442,23 +335,18 @@ def checkout():
     if session.get('role') == 'admin': return jsonify({"error": "You are Super Admin!"})
     
     data = request.get_json()
-    plan = str(data.get('plan', '')).strip()
-    utr = data.get('utr', '').strip()
-    email = session['user']
+    utr, plan = data.get('utr', '').strip(), str(data.get('plan', '')).strip()
+    if len(utr) < 8: return jsonify({"error": "Invalid UTR."})
     
-    if not utr or len(utr) < 8: return jsonify({"error": "Invalid UTR."})
-    
-    if plan in ['pro', '49']: new_credits, new_role, msg = 4999, 'pro', "Welcome to PRO ⚡"
-    elif plan in ['premium', '99']: new_credits, new_role, msg = 10000, 'premium', "Welcome to PREMIUM 💎"
-    else: return jsonify({"error": "Invalid plan."})
+    new_credits, new_role, msg = (4999, 'pro', "PRO ⚡") if plan in ['pro', '49'] else (10000, 'premium', "PREMIUM 💎")
     
     try:
         conn = sqlite3.connect(database.DB_NAME)
-        conn.execute("UPDATE users SET role = ?, credits = ? WHERE email = ?", (new_role, new_credits, email))
+        conn.execute("UPDATE users SET role = ?, credits = ? WHERE email = ?", (new_role, new_credits, session['user']))
         conn.commit()
         conn.close()
         session['role'], session['credits'] = new_role, new_credits
-        return jsonify({"status": "success", "message": f"Payment Verified! {msg}", "redirect": url_for('studio')})
+        return jsonify({"status": "success", "message": f"Verified! Welcome to {msg}", "redirect": url_for('studio')})
     except Exception as e: return jsonify({"error": str(e)})
 
 
@@ -475,10 +363,8 @@ def deep_consult():
     if session.get('role') not in ['pro', 'premium', 'admin']: return jsonify({"error": "Premium Feature Locked 🔒"})
     
     data = request.get_json()
-    u1 = data.get('url1', '').strip()
-    u2 = data.get('url2', '').strip()
-    
-    if not u1 and not u2: return jsonify({"error": "At least one URL required."})
+    u1, u2 = data.get('url1', '').strip(), data.get('url2', '').strip()
+    if not u1 and not u2: return jsonify({"error": "URL required."})
     if session.get('credits', 0) < 100: return jsonify({"error": "Insufficient Credits."})
 
     database.deduct_credits(session['user'], 100)
@@ -489,75 +375,41 @@ def deep_consult():
         def resolve_url(url_input):
             v_id = extract_id(url_input)
             if v_id:
-                try:
-                    v_res = youtube.videos().list(part="snippet", id=v_id).execute()
-                    if v_res.get('items'): return {"type": "id", "value": v_res['items'][0]['snippet']['channelId']}
+                try: return {"type": "id", "value": youtube.videos().list(part="snippet", id=v_id).execute()['items'][0]['snippet']['channelId']}
                 except: pass
             return extract_channel_query(url_input)
         
         def analyze_channel_deep(query_input):
             query = resolve_url(query_input)
-            if query["type"] == "forHandle": ch_res = youtube.channels().list(part="snippet,statistics,contentDetails", forHandle=query["value"]).execute()
-            else: ch_res = youtube.channels().list(part="snippet,statistics,contentDetails", id=query["value"]).execute()
-            
+            ch_res = youtube.channels().list(part="snippet,statistics,contentDetails", **{query["type"]: query["value"]}).execute()
             if not ch_res.get('items'): return None
-            ch_item = ch_res['items'][0]
-            ch_name = ch_item['snippet']['title']
-            subs = int(ch_item['statistics'].get('subscriberCount', 0))
-            uploads_id = ch_item['contentDetails']['relatedPlaylists']['uploads']
-
-            pl_res = youtube.playlistItems().list(part="snippet", playlistId=uploads_id, maxResults=15).execute()
-            video_ids = [item['snippet']['resourceId']['videoId'] for item in pl_res.get('items', [])]
             
-            total_recent_views, total_recent_engagements = 0, 0
-            best_video = {"title": "N/A", "views": 0, "likes": 0, "comments": 0, "er": 0, "id": None}
+            ch_item = ch_res['items'][0]
+            ch_name, subs, uploads_id = ch_item['snippet']['title'], int(ch_item['statistics'].get('subscriberCount', 0)), ch_item['contentDetails']['relatedPlaylists']['uploads']
+
+            video_ids = [item['snippet']['resourceId']['videoId'] for item in youtube.playlistItems().list(part="snippet", playlistId=uploads_id, maxResults=15).execute().get('items', [])]
+            total_v, total_e, best_vid = 0, 0, {"title": "N/A", "views": 0, "likes": 0, "comments": 0, "er": 0, "id": None}
             
             if video_ids:
-                vid_res = youtube.videos().list(part="snippet,statistics", id=",".join(video_ids)).execute()
-                for v in vid_res.get('items', []):
-                    v_views = int(v['statistics'].get('viewCount', 0))
-                    v_likes = int(v['statistics'].get('likeCount', 0))
-                    v_comms = int(v['statistics'].get('commentCount', 0))
-                    
-                    total_recent_views += v_views
-                    engagements = v_likes + v_comms
-                    total_recent_engagements += engagements
-                    er = (engagements / v_views * 100) if v_views > 0 else 0
-                    
-                    score = v_views + (er * 1000)
-                    best_score = best_video["views"] + (best_video["er"] * 1000)
-                    
-                    if score > best_score: best_video = {"title": v['snippet']['title'], "views": v_views, "likes": v_likes, "comments": v_comms, "er": er, "id": v['id']}
+                for v in youtube.videos().list(part="snippet,statistics", id=",".join(video_ids)).execute().get('items', []):
+                    views = int(v['statistics'].get('viewCount', 0))
+                    engs = int(v['statistics'].get('likeCount', 0)) + int(v['statistics'].get('commentCount', 0))
+                    total_v += views; total_e += engs
+                    er = (engs / views * 100) if views > 0 else 0
+                    if views + (er * 1000) > best_vid["views"] + (best_vid["er"] * 1000): best_vid = {"title": v['snippet']['title'], "views": views, "likes": engs, "comments": 0, "er": er, "id": v['id']}
 
-            channel_avg_er = (total_recent_engagements / total_recent_views * 100) if total_recent_views > 0 else 0
-            
-            if best_video["id"]:
-                advice = (
-                    f"📊 DATA EXTRACT: Evaluated the last {len(video_ids)} uploads.\n"
-                    f"• Channel Average Engagement Rate: {round(channel_avg_er, 2)}%\n"
-                    f"• Outlier Video: '{best_video['title']}'\n"
-                    f"• Outlier Performance: {best_video['views']} Views, {best_video['likes']} Likes, {best_video['comments']} Comments.\n"
-                    f"• Outlier Engagement Rate: {round(best_video['er'], 2)}%\n\n"
-                    f"🔮 AI PREDICTION & ACTION PLAN:\n"
-                    f"The algorithm heavily favored this video because its engagement rate ({round(best_video['er'], 2)}%) "
-                    f"spiked above your channel average. Duplicate pacing and visual style to trigger recommendations."
-                )
-            else: advice = "Not enough recent data to calculate precise engagement metrics."
+            avg_er = (total_e / total_v * 100) if total_v > 0 else 0
+            advice = f"📊 Evaluated last 15 uploads.\n• Channel Avg ER: {round(avg_er, 2)}%\n• Outlier Video: '{best_vid['title']}' ({round(best_vid['er'], 2)}% ER)\n\n🔮 ACTION PLAN: The algorithm favored this video due to high ER. Duplicate its pacing and layout." if best_vid["id"] else "Not enough data."
             return {"name": ch_name, "subs": subs, "advice": advice}
 
-        if u1 and not u2:
-            c1_data = analyze_channel_deep(u1)
-            if not c1_data: return jsonify({"error": "Invalid URL."})
-            return jsonify({"mode": "single", "data": c1_data, "credits_left": session['credits']})
+        c1_data = analyze_channel_deep(u1) if u1 else None
+        if u1 and not u2: return jsonify({"mode": "single", "data": c1_data, "credits_left": session['credits']}) if c1_data else jsonify({"error": "Invalid URL."})
 
-        if u1 and u2:
-            c1_data = analyze_channel_deep(u1)
-            c2_data = analyze_channel_deep(u2)
-            if not c1_data or not c2_data: return jsonify({"error": "Invalid URLs."})
-            winner = c1_data['name'] if c1_data['subs'] > c2_data['subs'] else c2_data['name']
-            verdict = f"🏆 ALGORITHMIC DOMINANCE: {winner} has a stronger overall footprint."
-            return jsonify({"mode": "versus", "winner": winner, "verdict": verdict, "c1": c1_data, "c2": c2_data, "credits_left": session['credits']})
-    except Exception as e: return jsonify({"error": "Processing Error: " + str(e)})
+        c2_data = analyze_channel_deep(u2)
+        if not c1_data or not c2_data: return jsonify({"error": "Invalid URLs."})
+        winner = c1_data['name'] if c1_data['subs'] > c2_data['subs'] else c2_data['name']
+        return jsonify({"mode": "versus", "winner": winner, "verdict": f"🏆 DOMINANCE: {winner} has a stronger footprint.", "c1": c1_data, "c2": c2_data, "credits_left": session['credits']})
+    except Exception as e: return jsonify({"error": f"Error: {str(e)}"})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
