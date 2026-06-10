@@ -10,7 +10,7 @@
 
 <div class="glass p-6 mb-8 border-t-4 border-blue-500 shadow-md transition-all">
     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
-        <h2 class="font-black italic text-sm uppercase tracking-wider text-slate-800 mb-2 sm:mb-0">Pulse Stream (Gemini AI)</h2>
+        <h2 class="font-black italic text-sm uppercase tracking-wider text-slate-800 mb-2 sm:mb-0">Pulse Stream</h2>
         <span class="text-slate-400 text-xs font-bold bg-slate-100 px-3 py-1 rounded-full border border-slate-200">Tier Based Credits</span>
     </div>
     
@@ -32,19 +32,18 @@
         </div>
         
         <div class="flex justify-between items-end mb-2 px-1">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Analysis Engine</p>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recent Comments Stream</p>
             <p class="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">Total Comments Analysed: <span id="totalMetaComments" class="text-slate-800">0</span></p>
         </div>
         
-        <div class="p-4 border border-slate-200 rounded-xl bg-white h-auto text-xs text-slate-600 shadow-inner" id="commentStream">
-            <p class="text-center font-bold text-slate-400 py-4">Sentiment mapped successfully via Gemini 1.5 Flash Engine.</p>
+        <div class="p-4 border border-slate-200 rounded-xl bg-white h-64 overflow-y-auto text-xs text-slate-600 shadow-inner" id="commentStream">
         </div>
     </div>
 </div>
 
 <div class="glass p-6 mb-8 border-t-4 border-emerald-500 shadow-md">
     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6">
-        <h2 class="font-black italic text-sm uppercase tracking-wider text-slate-800 mb-2 sm:mb-0">Channel Audit (Math Engine)</h2>
+        <h2 class="font-black italic text-sm uppercase tracking-wider text-slate-800 mb-2 sm:mb-0">Channel Audit (Recent Video Trajectory)</h2>
         <span class="text-slate-400 text-xs font-bold bg-slate-100 px-3 py-1 rounded-full border border-slate-200">Cost: 50 Credits</span>
     </div>
 
@@ -55,7 +54,7 @@
 
     <div id="auditResults" class="hidden animate-fade-in mt-6 pt-6 border-t border-slate-100">
         <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <canvas id="cognisenseAuditChart" height="100"></canvas>
+            <canvas id="cognisenseAuditChart" height="110"></canvas>
         </div>
     </div>
 </div>
@@ -73,7 +72,7 @@
         <input type="text" id="vsUrl1" placeholder="Video / Channel URL 1" class="flex-1 p-4 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-purple-500 bg-slate-50">
         <div class="hidden md:flex items-center justify-center font-black italic text-slate-300">VS</div>
         <input type="text" id="vsUrl2" placeholder="Video / Channel URL 2" class="flex-1 p-4 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-purple-500 bg-slate-50">
-        <button onclick="runVersus()" id="vsBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-black px-8 py-4 rounded-xl transition uppercase italic tracking-wider shadow-md">Compare</button>
+        <button onclick="runVersus()" id="vsBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-black px-8 py-4 rounded-xl transition uppercase italic tracking-wider shadow-md">Consult</button>
     </div>
 
     <div id="vsResults" class="hidden animate-fade-in mt-6 pt-6 border-t border-slate-100 relative z-10">
@@ -118,7 +117,7 @@
 
     function updateCredits(newCredits) {
         const creditEl = document.getElementById('nav-credits');
-        if (creditEl && newCredits !== undefined) {
+        if (creditEl && newCredits !== undefined) { 
             creditEl.innerText = newCredits;
             creditEl.classList.add('text-emerald-500', 'scale-110');
             setTimeout(() => creditEl.classList.remove('text-emerald-500', 'scale-110'), 300);
@@ -133,13 +132,12 @@
         return num.toLocaleString('en-IN'); 
     }
 
-    // 1. PULSE STREAM FIXED (Aligns with new Gemini backend)
+    // --- 1. PULSE STREAM JS ---
     async function runPulse() {
         const btn = document.getElementById('pulseBtn');
         const url = document.getElementById('videoUrl').value.trim();
         if(!url) return alert("Please enter a YouTube Video URL!");
-
-        btn.innerText = "Analyzing..."; btn.disabled = true;
+        btn.innerText = "Extracting Massive Data..."; btn.disabled = true;
         
         try {
             const res = await fetch('/api/pulse-stream',{
@@ -149,35 +147,38 @@
             });
             const data = await res.json();
             
-            if(data.error) {
+            if(data.error) { 
                 alert(data.error); 
-                if(data.error.includes("login") || data.error.includes("Authentication")) window.location.href = "/login";
+                if(data.error.includes("login")) window.location.href = "/login";
             } else {
                 document.getElementById('pulseResults').classList.remove('hidden');
+                document.getElementById('posScore').innerText = data.positive + "%";
+                document.getElementById('negScore').innerText = data.negative + "%";
+                document.getElementById('totalMetaComments').innerText = formatNumber(data.total_comments);
                 
-                // Supporting both new and old backend structure natively
-                const pos = data.positive !== undefined ? data.positive : (data.data && data.data.positive ? data.data.positive : 0);
-                const neg = data.negative !== undefined ? data.negative : (data.data && data.data.negative ? data.data.negative : 0);
-                const total = data.total_comments !== undefined ? data.total_comments : (data.data && data.data.meta ? data.data.meta.comments_total : 0);
-
-                document.getElementById('posScore').innerText = pos + "%";
-                document.getElementById('negScore').innerText = neg + "%";
-                document.getElementById('totalMetaComments').innerText = formatNumber(total);
-                
+                const streamBox = document.getElementById('commentStream');
+                if(data.stream && data.stream.length > 0) {
+                    streamBox.innerHTML = data.stream.map(c => {
+                        const badgeColor = c.sentiment === 'positive' ? 'text-emerald-500 bg-emerald-50' : (c.sentiment === 'negative' ? 'text-rose-600 bg-rose-50' : 'text-slate-400 bg-slate-50');
+                        return `<div class="mb-3 pb-3 border-b border-slate-100 flex items-start justify-between">
+                            <span class="text-slate-700 font-medium text-sm">${c.html}</span>
+                            <span class="${badgeColor} font-black uppercase text-[9px] ml-3 mt-1 shrink-0 px-2 py-0.5 rounded tracking-wider">${c.sentiment}</span>
+                        </div>`;
+                    }).join('');
+                } else {
+                    streamBox.innerHTML = `<p class="text-center text-slate-400 py-4">No stream content to display.</p>`;
+                }
                 updateCredits(data.credits_left);
             }
-        } catch(e) {
-            alert("Network Error. Check console.");
-        }
+        } catch(e) { alert("Network Error."); }
         btn.innerText = "Analyze"; btn.disabled = false;
     }
 
-    // 2. CHANNEL AUDIT FIXED (Chart.js injection)
+    // --- 2. CHANNEL AUDIT JS ---
     async function runAudit() {
         const btn = document.getElementById('auditBtn');
         const url = document.getElementById('auditUrl').value.trim();
         if(!url) return alert("Please enter a Channel URL or Handle!");
-
         btn.innerText = "Auditing..."; btn.disabled = true;
 
         try {
@@ -187,39 +188,39 @@
                 body: JSON.stringify({url: url})
             });
             const data = await res.json();
-
-            if(data.error) {
-                alert(data.error);
-                if(data.error.includes("login") || data.error.includes("Authentication")) window.location.href = "/login";
+            
+            if(data.error) { 
+                alert(data.error); 
+                if(data.error.includes("login")) window.location.href = "/login";
             } else {
                 document.getElementById('auditResults').classList.remove('hidden');
-                
                 const ctx = document.getElementById('cognisenseAuditChart').getContext('2d');
-                
-                // Destroy previous chart to prevent UI overlap glitch
                 if (window.cogniChart) { window.cogniChart.destroy(); }
                 
                 window.cogniChart = new Chart(ctx, {
-                    type: 'line',
                     data: {
                         labels: data.labels,
                         datasets: [
                             {
-                                label: 'Total Views (Reach)',
+                                type: 'bar', 
+                                label: 'Video Views (Reach)',
                                 data: data.views,
+                                backgroundColor: 'rgba(59, 130, 246, 0.75)',
                                 borderColor: 'rgb(59, 130, 246)',
-                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                borderWidth: 1,
                                 yAxisID: 'yViews',
-                                tension: 0.4,
-                                fill: true
+                                borderRadius: 6
                             },
                             {
+                                type: 'line', 
                                 label: 'Engagement Rate (%)',
                                 data: data.engagement,
                                 borderColor: 'rgb(16, 185, 129)',
-                                borderDash: [5, 5], 
+                                backgroundColor: 'transparent',
+                                borderWidth: 3,
+                                pointBackgroundColor: 'rgb(16, 185, 129)',
                                 yAxisID: 'yEngagement',
-                                tension: 0.4
+                                tension: 0.35
                             }
                         ]
                     },
@@ -229,26 +230,23 @@
                         scales: {
                             yViews: {
                                 type: 'linear', display: true, position: 'left',
-                                title: { display: true, text: 'Total Views' }
+                                title: { display: true, text: 'Views Per Video', font: { weight: 'bold' } }
                             },
                             yEngagement: {
                                 type: 'linear', display: true, position: 'right',
-                                title: { display: true, text: 'Engagement Rate (%)' },
+                                title: { display: true, text: 'Engagement %', font: { weight: 'bold' } },
                                 grid: { drawOnChartArea: false }
                             }
                         }
                     }
                 });
-
                 updateCredits(data.credits_left);
             }
-        } catch(e) {
-            alert("Network Error. Check console.");
-        }
+        } catch(e) { alert("Network Error."); }
         btn.innerText = "Audit"; btn.disabled = false;
     }
 
-    // 3. DEEP CONSULT FIXED (Isolated Variables to prevent Data Overlap)
+    // --- 3. DEEP CONSULT JS ---
     async function runVersus() {
         const btn = document.getElementById('vsBtn');
         const u1Raw = document.getElementById('vsUrl1').value.trim();
@@ -259,13 +257,13 @@
         const u1 = u1Raw || u2Raw;
         const u2 = (u1Raw && u2Raw) ? u2Raw : "";
 
-        // UI Reset Pre-Fetch to ensure no old data carries over
+        // UI Reset
         document.getElementById('vsName1').innerText = "Loading...";
         document.getElementById('vsAdvice1').innerText = "-";
         document.getElementById('vsName2').innerText = "Loading...";
         document.getElementById('vsAdvice2').innerText = "-";
 
-        btn.innerText = "Extracting Algorithmic Data..."; btn.disabled = true;
+        btn.innerText = "Extracting Data..."; btn.disabled = true;
 
         try {
             const res = await fetch('/deep_consult', {
@@ -294,12 +292,10 @@
                     document.getElementById('vsCard1').parentElement.classList.replace('md:grid-cols-1', 'md:grid-cols-2');
                     document.getElementById('vsVerdict').innerText = data.verdict;
                     
-                    // Card 1 Isolation
                     document.getElementById('vsName1').innerText = data.c1.name;
                     document.getElementById('vsSubs1').innerText = formatNumber(data.c1.subs);
                     document.getElementById('vsAdvice1').innerText = data.c1.advice;
                     
-                    // Card 2 Isolation
                     document.getElementById('vsName2').innerText = data.c2.name;
                     document.getElementById('vsSubs2').innerText = formatNumber(data.c2.subs);
                     document.getElementById('vsAdvice2').innerText = data.c2.advice;
@@ -309,7 +305,7 @@
         } catch(e) {
             alert("Network Error. Check console.");
         }
-        btn.innerText = "Compare"; btn.disabled = false;
+        btn.innerText = "Consult"; btn.disabled = false;
     }
 </script>
 
