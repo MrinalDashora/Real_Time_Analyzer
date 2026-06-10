@@ -35,7 +35,7 @@
         <div class="glass p-8 border-t-4 border-blue-500 shadow-md flex flex-col justify-between">
             <div>
                 <h3 class="font-black text-2xl uppercase text-blue-600 mb-2 flex items-center gap-2">Pro ⚡</h3>
-                <p class="text-3xl font-black text-slate-900 mb-6">₹499 <span class="text-sm text-slate-400 font-bold">/ month</span></p>
+                <p class="text-3xl font-black text-slate-900 mb-6">₹49 <span class="text-sm text-slate-400 font-bold">/ month</span></p>
                 <ul class="space-y-4 mb-8 text-sm font-bold text-slate-600">
                     <li class="flex items-center gap-2"><span class="text-blue-500">✔</span> <b>4,999</b> Monthly Credits</li>
                     <li class="flex items-center gap-2"><span class="text-blue-500">✔</span> Advanced Pulse Stream</li>
@@ -50,8 +50,8 @@
             {% elif session.get('role') in ['premium', 'admin'] %}
                 <button disabled class="w-full bg-slate-50 text-slate-300 font-black py-4 rounded-xl uppercase tracking-wider cursor-not-allowed">Included in Higher Plan</button>
             {% else %}
-                <button onclick="openUPIModal('pro', 499)" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-wider flex justify-center items-center gap-2">
-                    Pay ₹499 via UPI
+                <button onclick="openUPIModal('pro', 49)" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl transition shadow-lg shadow-blue-200 uppercase tracking-wider flex justify-center items-center gap-2">
+                    Pay ₹49 via UPI
                 </button>
             {% endif %}
         </div>
@@ -61,7 +61,7 @@
             <div class="absolute top-0 right-0 bg-purple-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-lg rounded-tr-xl">Max Cap</div>
             <div>
                 <h3 class="font-black text-2xl uppercase text-purple-700 mb-2 flex items-center gap-2">Premium 💎</h3>
-                <p class="text-3xl font-black text-slate-900 mb-6">₹999 <span class="text-sm text-slate-400 font-bold">/ month</span></p>
+                <p class="text-3xl font-black text-slate-900 mb-6">₹99 <span class="text-sm text-slate-400 font-bold">/ month</span></p>
                 <ul class="space-y-4 mb-8 text-sm font-bold text-slate-600">
                     <li class="flex items-center gap-2"><span class="text-purple-500">✔</span> <b>10,000</b> Monthly Credits (Max)</li>
                     <li class="flex items-center gap-2"><span class="text-purple-500">✔</span> Unrestricted Processing</li>
@@ -76,8 +76,8 @@
             {% elif session.get('role') == 'admin' %}
                 <button disabled class="w-full bg-slate-900 text-white font-black py-4 rounded-xl uppercase tracking-wider flex justify-center items-center gap-2 cursor-not-allowed"><span>👑</span> Admin Mode</button>
             {% else %}
-                <button onclick="openUPIModal('premium', 999)" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-4 rounded-xl transition shadow-lg shadow-purple-200 uppercase tracking-wider flex justify-center items-center gap-2">
-                    Pay ₹999 via UPI
+                <button onclick="openUPIModal('premium', 99)" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-4 rounded-xl transition shadow-lg shadow-purple-200 uppercase tracking-wider flex justify-center items-center gap-2">
+                    Pay ₹99 via UPI
                 </button>
             {% endif %}
         </div>
@@ -120,12 +120,8 @@
     console.log("Roll Number: 24BCON1413");
     console.log("=========================================");
 
-    // ==========================================
-    // ⚠️ ENTER YOUR ACTUAL UPI DETAILS HERE ⚠️
-    // ==========================================
-    const MY_UPI_ID = "mrinaldashora@oksbi"; // Replace with your PhonePe/GPay UPI ID
-    const MY_NAME = "mrinaldashora"; // Business Name to show on user's app
-    // ==========================================
+    const MY_UPI_ID = "mrinaldashora@oksbi"; 
+    const MY_NAME = "mrinaldashora"; 
 
     let selectedPlan = '';
 
@@ -134,16 +130,11 @@
         document.getElementById('modalTitle').innerText = `Upgrade to ${plan.toUpperCase()}`;
         document.getElementById('utrInput').value = '';
         
-        // Generate Standard UPI String
         const upiString = `upi://pay?pa=${MY_UPI_ID}&pn=${encodeURIComponent(MY_NAME)}&am=${amount}&cu=INR`;
-        
-        // Generate QR Code using free API
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiString)}`;
         document.getElementById('qrCodeImage').src = qrUrl;
         
-        // Set Mobile Intent Link
         document.getElementById('mobilePayBtn').href = upiString;
-        
         document.getElementById('upiModal').classList.remove('hidden');
     }
 

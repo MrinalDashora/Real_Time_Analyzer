@@ -200,7 +200,7 @@ def pricing():
 def checkout():
     # Terminal Output Mandate
     print("\n=========================================")
-    print("Name: Mrinal Dashora")
+    print("System Initialized by: Mrinal Dashora")
     print("Roll Number: 24BCON1413")
     print("[LOG] Processing Real UPI Payment Upgrade...")
     print("=========================================\n")
@@ -209,7 +209,7 @@ def checkout():
     if session.get('role') == 'admin': return jsonify({"error": "You are a Super Admin! You already have maximum access."})
     
     data = request.get_json()
-    plan = str(data.get('plan', '')).strip()  # String mein convert kiya taaki '49' ya 49 dono chalein
+    plan = str(data.get('plan', '')).strip()  # Supports both '49' and 'pro'
     utr = data.get('utr', '').strip()
     email = session['user']
     
@@ -217,7 +217,7 @@ def checkout():
     if not utr or len(utr) < 8:
         return jsonify({"error": "Invalid UTR. Please enter the correct Transaction ID from your UPI app."})
     
-    # Naye 49 aur 99 pricing plans ki mapping
+    # Pricing plans mapping (49 and 99)
     if plan in ['pro', '49']:
         new_credits = 4999
         new_role = 'pro'
