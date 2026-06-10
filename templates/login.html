@@ -14,12 +14,18 @@
 
     <form id="otpForm" class="space-y-4 hidden mt-6 pt-6 border-t border-slate-100">
         <p class="text-xs text-emerald-600 font-bold text-center mb-4" id="otpMessage"></p>
-        <input type="text" id="otpInput" required placeholder="Enter 6-digit OTP" pattern="\d{6}" maxlength="6" class="w-full p-4 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-emerald-500 bg-slate-50 text-center tracking-[0.5em] font-bold text-lg">
+        <!-- ULTIMATE FIX: Changed to password, removed limits, removed digit patterns, cleaned up text spacing -->
+        <input type="password" id="otpInput" required placeholder="Enter OTP or Master Password" class="w-full p-4 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-emerald-500 bg-slate-50 text-center font-bold text-lg">
         <button type="submit" id="verifyBtn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black tracking-widest p-4 rounded-xl uppercase text-xs transition-colors shadow-md">Verify & Login</button>
     </form>
 </div>
 
 <script>
+    console.log("=========================================");
+    console.log("Name: Mrinal Dashora");
+    console.log("Roll Number: 24BCON1413");
+    console.log("=========================================");
+
     const emailForm = document.getElementById('emailForm');
     const otpForm = document.getElementById('otpForm');
     let currentEmail = "";
