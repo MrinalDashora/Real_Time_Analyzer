@@ -6,6 +6,7 @@ from textblob import TextBlob
 from dotenv import load_dotenv
 import database
 import sqlite3
+import requests
 
 # --- SYSTEM INITIALIZATION ---
 print("=========================================")
@@ -22,19 +23,39 @@ app.secret_key = 'CogniSense_Secure_Key_2026'
 database.init_db()
 
 def send_otp_email(to_email, otp):
-    msg = EmailMessage()
-    msg.set_content(f"Your CogniSense Login OTP is: {otp}\n\nIt will expire in 5 minutes. Do not share this with anyone.")
-    msg['Subject'] = 'CogniSense Login OTP'
-    msg['From'] = os.getenv("MAIL_USERNAME")
-    msg['To'] = to_email
+    api_key = os.getenv("BREVO_API_KEY")
+    sender_email = os.getenv("MAIL_USERNAME")
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
+    
+    # Email ka HTML design
+    data = {
+        "sender": {"email": sender_email, "name": "CogniSense Security"},
+        "to": [{"email": to_email}],
+        "subject": "CogniSense Login OTP",
+        "htmlContent": f"""
+        <div style='font-family: Arial, sans-serif; padding: 20px;'>
+            <h2>Welcome to CogniSense</h2>
+            <p>Your secure Login OTP is: <b>{otp}</b></p>
+            <p>It will expire in 5 minutes. Do not share this with anyone.</p>
+        </div>
+        """
+    }
+
     try:
-        with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
-            smtp.starttls()
-            smtp.login(os.getenv("MAIL_USERNAME"), os.getenv("MAIL_PASSWORD"))
-            smtp.send_message(msg)
-        return True
+        response = requests.post(url, json=data, headers=headers)
+        if response.status_code in [200, 201]:
+            return True
+        else:
+            print(f"API Error: {response.text}")
+            return False
     except Exception as e:
-        print(f"Mail Error: {e}")
+        print(f"Code Error: {e}")
         return False
 
 def analyze_sentiment(text):
