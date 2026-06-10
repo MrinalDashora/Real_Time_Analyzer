@@ -22,6 +22,7 @@ load_dotenv()
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 app = Flask(__name__) 
+app.secret_key = os.getenv("SECRET_KEY", "cognisense_master_key_123")
 
 # --- HELPERS & AI ENGINES ---
 def analyze_sentiment_via_gemini(comments_list):
