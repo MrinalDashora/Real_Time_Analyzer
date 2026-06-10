@@ -55,9 +55,8 @@ def analyze_sentiment_via_gemini(comments_list):
 def send_otp_email(to_email, otp):
     brevo_key = os.getenv("BREVO_API_KEY")
     sender_email = os.getenv("MAIL_USERNAME")
-    sender_pass = os.getenv("MAIL_PASSWORD") # For Gmail SMTP Fallback
+    sender_pass = os.getenv("MAIL_PASSWORD") 
     
-    # --- PLAN A: BREVO API ---
     if brevo_key and sender_email:
         try:
             url = "https://api.brevo.com/v3/smtp/email"
@@ -75,7 +74,6 @@ def send_otp_email(to_email, otp):
             else: print(f"[Brevo Warning] {res.text}")
         except Exception as e: print(f"[Brevo Crash] {e}")
 
-    # --- PLAN B: GMAIL SMTP FALLBACK ---
     if sender_email and sender_pass:
         try:
             msg = EmailMessage()
@@ -253,7 +251,8 @@ def update_user():
     if target_email.lower() == os.getenv("SUPER_ADMIN_EMAIL").lower() and new_role != 'admin': return jsonify({"error": "Security: Cannot demote Super Admin!"})
     
     conn = sqlite3.connect(database.DB_NAME)
-    new_credits = 10000 if new_role in ['admin', 'premium'] else (4999 if new_role == 'pro' else 1000)
+    # 100K Credits Logic Applied Here
+    new_credits = 100000 if new_role == 'admin' else (10000 if new_role == 'premium' else (4999 if new_role == 'pro' else 1000))
     conn.execute("UPDATE users SET role = ?, credits = ? WHERE email = ?", (new_role, new_credits, target_email))
     conn.commit()
     conn.close()
@@ -271,12 +270,10 @@ def login():
     email = request.form.get('email')
     admin_email = os.getenv("SUPER_ADMIN_EMAIL")
 
-    # --- ADMIN VIP BYPASS ---
     if admin_email and email.lower() == admin_email.lower():
         database.update_otp(email, "ADMIN_BYPASS")
         return jsonify({"status": "success", "message": "Admin Access: Enter Master Password instead of OTP."})
 
-    # --- REGULAR USERS ---
     otp = str(random.randint(100000, 999999))
     database.update_otp(email, otp)
     
@@ -291,18 +288,17 @@ def verify_post():
     admin_email = os.getenv("SUPER_ADMIN_EMAIL")
     admin_password = os.getenv("ADMIN_PASSWORD", "Admin@123") 
     
-    # --- ADMIN VERIFICATION ---
     if admin_email and email.lower() == admin_email.lower():
         if user_otp == admin_password:
             conn = sqlite3.connect(database.DB_NAME)
-            conn.execute("UPDATE users SET role = 'admin', credits = 10000 WHERE email = ?", (email,))
+            # Admin gets 100K credits directly upon VIP login
+            conn.execute("UPDATE users SET role = 'admin', credits = 100000 WHERE email = ?", (email,))
             conn.commit()
             conn.close()
-            session['user'], session['role'], session['credits'] = email, 'admin', 10000
+            session['user'], session['role'], session['credits'] = email, 'admin', 100000
             return jsonify({"status": "success", "redirect": url_for('home')})
         return jsonify({"status": "error", "message": "Invalid Admin Password!"})
 
-    # --- REGULAR USER VERIFICATION ---
     user = database.get_user(email)
     if user:
         if datetime.now() > datetime.strptime(user['otp_expiry'], "%Y-%m-%d %H:%M:%S.%f"): return jsonify({"status": "error", "message": "OTP expired."})
@@ -360,15 +356,20 @@ def deep_consult():
     print("=========================================\n")
 
     if 'user' not in session: return jsonify({"error": "Authentication Required."})
-    if session.get('role') not in ['pro', 'premium', 'admin']: return jsonify({"error": "Premium Feature Locked 🔒"})
+    user_role = session.get('role')
+    if user_role not in ['pro', 'premium', 'admin']: return jsonify({"error": "Premium Feature Locked 🔒"})
     
     data = request.get_json()
     u1, u2 = data.get('url1', '').strip(), data.get('url2', '').strip()
     if not u1 and not u2: return jsonify({"error": "URL required."})
-    if session.get('credits', 0) < 100: return jsonify({"error": "Insufficient Credits."})
+    
+    if session.get('credits', 0) < 100 and user_role != 'admin': 
+        return jsonify({"error": "Insufficient Credits."})
 
-    database.deduct_credits(session['user'], 100)
-    session['credits'] -= 100
+    # Admin Immunity Applied Here
+    if user_role != 'admin':
+        database.deduct_credits(session['user'], 100)
+        session['credits'] -= 100
 
     try:
         youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
