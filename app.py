@@ -366,8 +366,10 @@ def verify_post():
     user_otp = request.form.get('otp')
     user = database.get_user(email)
     if user:
-        expiry_time = datetime.datetime.strptime(user['otp_expiry'], "%Y-%m-%d %H:%M:%S.%f")
-        if datetime.datetime.now() > expiry_time: return jsonify({"status": "error", "message": "OTP expired."})
+        # YAHAN FIX KIYA HAI: datetime.datetime ko sirf datetime kar diya
+        expiry_time = datetime.strptime(user['otp_expiry'], "%Y-%m-%d %H:%M:%S.%f")
+        if datetime.now() > expiry_time: return jsonify({"status": "error", "message": "OTP expired."})
+        
         if user['otp'] == user_otp:
             admin_email = os.getenv("SUPER_ADMIN_EMAIL")
             if admin_email and email.lower() == admin_email.lower() and user['role'] != 'admin':
@@ -380,6 +382,7 @@ def verify_post():
             session['role'] = user['role']
             session['credits'] = user['credits']
             return jsonify({"status": "success", "redirect": url_for('home')})
+            
     return jsonify({"status": "error", "message": "Invalid OTP!"})
 
 @app.route('/logout')
