@@ -9,6 +9,7 @@ import sqlite3
 import requests
 import json
 from datetime import datetime
+import urllib.parse
 # Baaki ke purane imports jo pehle se hain (jaise os, flask, sqlite3) unhe rehne dena
 
 # --- SYSTEM INITIALIZATION ---
@@ -141,6 +142,36 @@ def extract_channel_query(url_or_id):
         return {"type": "id", "value": cid}
     else:
         return {"type": "id", "value": url_or_id}
+    def extract_channel_query(url_or_id):
+    url_or_id = url_or_id.strip()
+    if '@' in url_or_id:
+        handle = url_or_id.split('@')[-1].split('/')[0].split('?')[0]
+        return {"type": "forHandle", "value": handle}
+    elif 'channel/UC' in url_or_id:
+        cid = 'UC' + url_or_id.split('channel/UC')[-1].split('/')[0].split('?')[0]
+        return {"type": "id", "value": cid}
+    else:
+        return {"type": "id", "value": url_or_id}
+
+# ==========================================
+# --- NAYA CHANNEL AUDIT CODE YAHAN AAYEGA ---
+# ==========================================
+def get_channel_monthly_stats(channel_url):
+    yt_api_key = os.getenv("YOUTUBE_API_KEY")
+    # ... (poora stat calculation wala code) ...
+
+@app.route('/api/channel-audit', methods=['POST'])
+def channel_audit():
+    # Terminal Output Mandate
+    print("\n=========================================")
+    print("Name: Mrinal Dashora")
+    print("Roll Number: 24BCON1413")
+    print("[LOG] Executing Deep Channel Math & Audit Engine...")
+    print("=========================================\n")
+    # ... (poora channel audit route ka code) ...
+# ==========================================
+
+# --- ADMIN PANEL ROUTES ---
 
 # --- ADMIN PANEL ROUTES ---
 @app.route('/admin')
