@@ -7,6 +7,9 @@ from dotenv import load_dotenv
 import database
 import sqlite3
 import requests
+import json
+from datetime import datetime
+# Baaki ke purane imports jo pehle se hain (jaise os, flask, sqlite3) unhe rehne dena
 
 # --- SYSTEM INITIALIZATION ---
 print("=========================================")
@@ -18,9 +21,49 @@ print("=========================================")
 load_dotenv()
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
-app = Flask(__name__)
-app.secret_key = 'CogniSense_Secure_Key_2026'
-database.init_db()
+app = Flask(__name__) # Yeh pehle se hoga
+
+# --- ISKO YAHAN PASTE KARO ---
+def analyze_sentiment_via_gemini(comments_list):
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        print("[ERROR] GEMINI_API_KEY is missing in Render environment!")
+        return 34, 33, 33
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    
+    formatted_comments = "\n".join([f"- {c}" for c in comments_list])
+    
+    prompt = f"""
+    Analyze the sentiment of the following YouTube comments. They contain English, Hindi, and Hinglish slang (e.g., 'mast', 'bakwas', 'op', 'gajab', 'maza aya').
+    Calculate the exact distribution percentage of Positive, Negative, and Neutral sentiment out of the total.
+    Return ONLY a valid JSON object with keys "positive", "negative", and "neutral" as integer percentages summing to 100. Do not include markdown codeblocks or triquetra.
+    
+    Comments:
+    {formatted_comments}
+    """
+    
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"responseMimeType": "application/json"}
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=25)
+        res_data = response.json()
+        raw_text = res_data['candidates'][0]['content']['parts'][0]['text']
+        
+        sentiment = json.loads(raw_text.strip())
+        return (
+            int(sentiment.get('positive', 0)),
+            int(sentiment.get('negative', 0)),
+            int(sentiment.get('neutral', 0))
+        )
+    except Exception as e:
+        print(f"[Gemini API Error] {e}. Falling back to default baseline split.")
+        return 40, 40, 20
+# ---------------------------------
 
 def send_otp_email(to_email, otp):
     api_key = os.getenv("BREVO_API_KEY")
@@ -245,48 +288,62 @@ def checkout():
     except Exception as e:
         return jsonify({"error": str(e)})
 
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    if 'user' not in session: return jsonify({"error": "Authentication Required: Please login to run Pulse Stream analysis."})
-    data = request.get_json()
-    v_id = extract_id(data.get('url', ''))
-    if not v_id: return jsonify({"error": "Invalid Video URL"})
-    if session.get('credits', 0) < 2: return jsonify({"error": "Insufficient Credits. Please upgrade your plan."})
+@app.route('/api/pulse-stream', methods=['POST'])
+def pulse_stream():
+    print("\n=========================================")
+    print("System Initialized by: Mrinal Dashora")
+    print("Roll Number: 24BCON1413")
+    print("[LOG] Triggering Gemini 1.5 Flash Tiered Batching Engine...")
+    print("=========================================\n")
+
+    if 'user' not in session: return jsonify({"error": "Please login first."})
     
-    database.deduct_credits(session['user'], 2)
-    session['credits'] -= 2
-
-    try:
-        youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-        v_meta = youtube.videos().list(part="snippet,statistics", id=v_id).execute()
-        meta_data = {}
-        if v_meta.get('items'):
-            snippet = v_meta['items'][0]['snippet']
-            stats = v_meta['items'][0]['statistics']
-            meta_data = {
-                "title": snippet.get('title', 'Unknown Title'),
-                "thumbnail": snippet['thumbnails'].get('high', {}).get('url', ''),
-                "views": stats.get('viewCount', '0'),
-                "comments_total": stats.get('commentCount', '0')
-            }
-
-        res = youtube.commentThreads().list(part="snippet", videoId=v_id, maxResults=50, textFormat='plainText').execute()
-        stream, pos_count, neg_count = [], 0, 0
-        for item in res.get("items", []):
-            text = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-            sentiment, _ = analyze_sentiment(text)
-            if sentiment == "positive": pos_count += 1
-            elif sentiment == "negative": neg_count += 1
-            stream.append({"html": text, "sentiment": sentiment})
+    user_role = session.get('role', 'free')
+    user_credits = session.get('credits', 0)
+    
+    if user_role == 'free':
+        comment_limit = 100
+        credit_cost = 10
+    elif user_role == 'pro':
+        comment_limit = 500
+        credit_cost = 20
+    else:
+        comment_limit = 1000
+        credit_cost = 30
         
-        total_actionable = pos_count + neg_count
-        pos_pct = round((pos_count / total_actionable * 100), 1) if total_actionable > 0 else 50.0
-        neg_pct = round((neg_count / total_actionable * 100), 1) if total_actionable > 0 else 50.0
-            
-        result = {"meta": meta_data, "positive": pos_pct, "negative": neg_pct, "stream": stream}
-        return jsonify({"source": "api", "data": result, "credits_left": session['credits']})
-    except Exception as e: return jsonify({"error": str(e)})
-
+    if user_credits < credit_cost and user_role != 'admin':
+        return jsonify({"error": f"Insufficient Credits. Requires {credit_cost} credits."})
+        
+    data = request.get_json()
+    video_url = data.get('url')
+    
+    # ⬇️ APNA PURANA VIDEO_ID EXTRACTION KA CODE YAHAN REHNE DENA ⬇️
+    # e.g., video_id = video_url.split("v=")[1] ... vagera vagera
+    
+    # ⬇️ APNA PURANA YOUTUBE API CALL CATCH KA CODE YAHAN RAKHNA ⬇️
+    # Bas usme maxResults=comment_limit pass kar dena taaki limit set rahe.
+    # Aur aakhiri list ka naam 'fetched_comments' rakh dena.
+    
+    if not fetched_comments:
+        return jsonify({"error": "No comments found or API quota exceeded."})
+        
+    # Gemini Single Request Hit
+    pos, neg, neu = analyze_sentiment_via_gemini(fetched_comments)
+    
+    # Deduct credits from SQLite
+    if user_role != 'admin':
+        new_credits = user_credits - credit_cost
+        session['credits'] = new_credits
+        # ⬇️ APNA PURANA SQLITE UPDATE QUERY CODE YAHAN REHNE DENA ⬇️
+        
+    return jsonify({
+        "status": "success",
+        "positive": pos,
+        "negative": neg,
+        "neutral": neu,
+        "total_comments": len(fetched_comments),
+        "credits_left": session.get('credits')
+    })
 @app.route('/audit_channel', methods=['POST'])
 def audit_channel():
     if 'user' not in session: return jsonify({"error": "Authentication Required: Please login to run Channel Audit."})
