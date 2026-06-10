@@ -1,4 +1,4 @@
-import os, re, random, smtplib, datetime
+import os, re, random, smtplib
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
 from email.message import EmailMessage
 from googleapiclient.discovery import build
@@ -15,7 +15,7 @@ import urllib.parse
 print("=========================================")
 print("System Initialized by: Mrinal Dashora")
 print("Roll Number: 24BCON1413")
-print("CogniSense Server Running (v7.0 Refined Tiered Engine)...")
+print("CogniSense Server Running (v7.0 Ultimate Tiered Engine)...")
 print("=========================================")
 
 load_dotenv()
@@ -34,7 +34,8 @@ def analyze_sentiment_via_gemini(comments_list):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     headers = {"Content-Type": "application/json"}
     
-    formatted_comments = "\n".join([f"- {c}" for c in comments_list])
+    # Passing only top 100 for exact percentage to prevent Gemini Token limit crash
+    formatted_comments = "\n".join([f"- {c}" for c in comments_list[:100]])
     
     prompt = f"""
     Analyze the sentiment of the following YouTube comments. They contain English, Hindi, and Hinglish slang (e.g., 'mast', 'bakwas', 'op', 'gajab', 'maza aya').
@@ -91,8 +92,7 @@ def send_otp_email(to_email, otp):
 
     try:
         response = requests.post(url, json=data, headers=headers)
-        if response.status_code in [200, 201]:
-            return True
+        if response.status_code in [200, 201]: return True
         else:
             print(f"API Error: {response.text}")
             return False
@@ -101,6 +101,7 @@ def send_otp_email(to_email, otp):
         return False
 
 def analyze_sentiment(text):
+    # Extremely fast local mapping for the thousands of fetched comments
     text_lower = text.lower()
     pos_emojis = ['😂', '❤️', '🔥', '😍', '🙌', '👏', '😊', '👍', '♥️', '🥰', '🤣', '💯', '👌']
     neg_emojis = ['😡', '🤮', '👎', '🤬', '💔', '😭', '🤦‍♂️', '💩', '👎🏻', 'sick']
@@ -111,9 +112,7 @@ def analyze_sentiment(text):
     pos_words = ["mast", "kadak", "op", "super", "best", "legend", "goat", "love", "amazing", "awesome", "bhai", "ek number", "jhakaas"]
     neg_words = ["bakwas", "ghatiya", "bekar", "tatti", "cringe", "fake", "hate", "scam", "chutiya", "worst", "gandi", "trash", "boring"]
     
-    for ex in ["harsh", "hardik"]:
-        text_lower = re.sub(rf'\b{ex}\b', '', text_lower)
-        
+    for ex in ["harsh", "hardik"]: text_lower = re.sub(rf'\b{ex}\b', '', text_lower)
     for pw in pos_words:
         if re.search(rf'\b{pw}\b', text_lower): return "positive", 0.5
     for nw in neg_words:
@@ -141,11 +140,10 @@ def extract_channel_query(url_or_id):
     else:
         return {"type": "id", "value": url_or_id}
 
-# --- NEW CHANNEL AUDIT MATH ENGINE ---
-def get_channel_monthly_stats(channel_url):
+# --- NEW VIDEO-BY-VIDEO CHANNEL AUDIT MATH ENGINE ---
+def get_recent_videos_stats(channel_url):
     yt_api_key = os.getenv("YOUTUBE_API_KEY")
-    if not yt_api_key:
-        raise Exception("YOUTUBE_API_KEY is missing in Render environment.")
+    if not yt_api_key: raise Exception("YOUTUBE_API_KEY is missing in Render environment.")
 
     channel_id = None
     query_data = extract_channel_query(channel_url)
@@ -160,20 +158,22 @@ def get_channel_monthly_stats(channel_url):
     
     if not channel_id: raise Exception("Invalid Channel URL or Handle.")
 
-    channel_url = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id={channel_id}&key={yt_api_key}"
-    c_res = requests.get(channel_url).json()
+    channel_url_api = f"https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id={channel_id}&key={yt_api_key}"
+    c_res = requests.get(channel_url_api).json()
     if not c_res.get('items'): raise Exception("Channel details not found.")
     uploads_playlist_id = c_res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
 
-    playlist_url = f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={uploads_playlist_id}&maxResults=50&key={yt_api_key}"
+    # Extract recent 12 videos to see individual video trajectory
+    playlist_url = f"https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId={uploads_playlist_id}&maxResults=12&key={yt_api_key}"
     p_res = requests.get(playlist_url).json()
     
     video_ids = []
-    published_dates = {}
+    titles = {}
     for item in p_res.get('items', []):
         vid = item['snippet']['resourceId']['videoId']
         video_ids.append(vid)
-        published_dates[vid] = item['snippet']['publishedAt']
+        t = item['snippet']['title']
+        titles[vid] = t[:18] + "..." if len(t) > 18 else t
 
     if not video_ids: raise Exception("No videos found on this channel.")
 
@@ -181,31 +181,19 @@ def get_channel_monthly_stats(channel_url):
     stats_url = f"https://www.googleapis.com/youtube/v3/videos?part=statistics&id={vids_joined}&key={yt_api_key}"
     v_res = requests.get(stats_url).json()
 
-    monthly_data = {}
-    for item in v_res.get('items', []):
-        vid = item['id']
-        date_str = published_dates[vid]
-        month_key = datetime.strptime(date_str[:10], "%Y-%m-%d").strftime("%b %Y")
-        
-        views = int(item['statistics'].get('viewCount', 0))
-        likes = int(item['statistics'].get('likeCount', 0))
-        comments = int(item['statistics'].get('commentCount', 0))
-        
-        if month_key not in monthly_data:
-            monthly_data[month_key] = {"views": 0, "engagements": 0}
-            
-        monthly_data[month_key]["views"] += views
-        monthly_data[month_key]["engagements"] += (likes + comments)
-
-    sorted_months = sorted(monthly_data.keys(), key=lambda x: datetime.strptime(x, "%b %Y"))
-    
     labels, views_list, engagement_rate_list = [], [], []
-    for m in sorted_months:
-        labels.append(m)
-        v = monthly_data[m]["views"]
-        e = monthly_data[m]["engagements"]
+    
+    # Reverse to show chronological order (oldest to newest among the 12)
+    for item in reversed(v_res.get('items', [])):
+        vid = item['id']
+        labels.append(titles[vid])
+        
+        v = int(item['statistics'].get('viewCount', 0))
+        l = int(item['statistics'].get('likeCount', 0))
+        c = int(item['statistics'].get('commentCount', 0))
+        
         views_list.append(v)
-        rate = round((e / v * 100), 2) if v > 0 else 0
+        rate = round(((l + c) / v * 100), 2) if v > 0 else 0
         engagement_rate_list.append(rate)
 
     return labels, views_list, engagement_rate_list
@@ -217,7 +205,7 @@ def channel_audit():
     print("\n=========================================")
     print("Name: Mrinal Dashora")
     print("Roll Number: 24BCON1413")
-    print("[LOG] Executing Deep Channel Math & Audit Engine...")
+    print("[LOG] Executing Deep Channel Video-wise Audit Engine...")
     print("=========================================\n")
 
     if 'user' not in session: return jsonify({"error": "Authentication required. Please login."})
@@ -235,7 +223,7 @@ def channel_audit():
     if not channel_url: return jsonify({"error": "Please provide a valid YouTube channel URL."})
 
     try:
-        labels, views, engagement = get_channel_monthly_stats(channel_url)
+        labels, views, engagement = get_recent_videos_stats(channel_url)
         
         if user_role != 'admin':
             new_credits = user_credits - credit_cost
@@ -262,7 +250,7 @@ def pulse_stream():
     print("\n=========================================")
     print("Name: Mrinal Dashora")
     print("Roll Number: 24BCON1413")
-    print("[LOG] Triggering Gemini 1.5 Flash Tiered Batching Engine...")
+    print("[LOG] Triggering MASSIVE Deep Fetch Engine...")
     print("=========================================\n")
 
     if 'user' not in session: return jsonify({"error": "Please login first."})
@@ -270,12 +258,9 @@ def pulse_stream():
     user_role = session.get('role', 'free')
     user_credits = session.get('credits', 0)
     
-    if user_role == 'free':
-        comment_limit, credit_cost = 100, 10
-    elif user_role == 'pro':
-        comment_limit, credit_cost = 500, 20
-    else:
-        comment_limit, credit_cost = 1000, 30
+    # Limits dynamically set based on Server Safety to prevent timeout
+    max_hard_limit = 1000 if user_role == 'free' else (3000 if user_role == 'pro' else 5000)
+    credit_cost = 10 if user_role == 'free' else (20 if user_role == 'pro' else 30)
         
     if user_credits < credit_cost and user_role != 'admin':
         return jsonify({"error": f"Insufficient Credits. Requires {credit_cost} credits."})
@@ -288,10 +273,34 @@ def pulse_stream():
     
     try:
         youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
-        req = youtube.commentThreads().list(part="snippet", videoId=video_id, maxResults=comment_limit, textFormat="plainText")
-        res = req.execute()
         
-        fetched_comments = [item['snippet']['topLevelComment']['snippet']['textDisplay'] for item in res.get('items', [])]
+        fetched_comments = []
+        comment_stream = []
+        next_page_token = None
+        
+        # AGGRESSIVE FETCH LOOP: Gathers all comments efficiently
+        while True:
+            req = youtube.commentThreads().list(
+                part="snippet", 
+                videoId=video_id, 
+                maxResults=100, 
+                textFormat="plainText",
+                pageToken=next_page_token
+            )
+            res = req.execute()
+            
+            for item in res.get('items', []):
+                text = item['snippet']['topLevelComment']['snippet']['textDisplay']
+                fetched_comments.append(text)
+                
+                # Fast local mapping
+                sent, _ = analyze_sentiment(text)
+                comment_stream.append({"html": text, "sentiment": sent})
+                
+            next_page_token = res.get('nextPageToken')
+            
+            if not next_page_token or len(fetched_comments) >= max_hard_limit:
+                break
         
         if not fetched_comments: return jsonify({"error": "No comments found or API disabled."})
         
@@ -311,6 +320,7 @@ def pulse_stream():
             "negative": neg,
             "neutral": neu,
             "total_comments": len(fetched_comments),
+            "stream": comment_stream, # Returns the full array to the UI
             "credits_left": session.get('credits')
         })
     except Exception as e:
@@ -354,30 +364,53 @@ def login():
     if request.method == 'GET':
         if 'user' in session: return redirect(url_for('home'))
         return render_template('login.html')
+    
     email = request.form.get('email')
+    admin_email = os.getenv("SUPER_ADMIN_EMAIL")
+
+    # --- ADMIN VIP BYPASS ---
+    if admin_email and email.lower() == admin_email.lower():
+        database.update_otp(email, "ADMIN_BYPASS") # User record ready
+        return jsonify({"status": "success", "message": "Admin Access: Enter Master Password instead of OTP."})
+
+    # --- REGULAR USERS ---
     otp = str(random.randint(100000, 999999))
     database.update_otp(email, otp)
     if send_otp_email(email, otp): return jsonify({"status": "success", "message": "OTP sent to your email!"})
     else: return jsonify({"status": "error", "message": "Failed to send OTP."})
 
+
 @app.route('/verify', methods=['POST'])
 def verify_post():
     email = request.form.get('email')
     user_otp = request.form.get('otp')
+    
+    admin_email = os.getenv("SUPER_ADMIN_EMAIL")
+    # Agar tune .env me ADMIN_PASSWORD nahi daala h, to default password 'Admin@123' rahega
+    admin_password = os.getenv("ADMIN_PASSWORD", "Mrinal@2006") 
+    
+    # --- ADMIN VERIFICATION LOGIC ---
+    if admin_email and email.lower() == admin_email.lower():
+        if user_otp == admin_password:
+            conn = sqlite3.connect(database.DB_NAME)
+            conn.execute("UPDATE users SET role = 'admin', credits = 10000 WHERE email = ?", (email,))
+            conn.commit()
+            conn.close()
+            user = database.get_user(email)
+            session['user'] = email
+            session['role'] = user['role']
+            session['credits'] = user['credits']
+            return jsonify({"status": "success", "redirect": url_for('home')})
+        else:
+            return jsonify({"status": "error", "message": "Invalid Admin Password!"})
+
+    # --- REGULAR USER VERIFICATION LOGIC ---
     user = database.get_user(email)
     if user:
-        # YAHAN FIX KIYA HAI: datetime.datetime ko sirf datetime kar diya
         expiry_time = datetime.strptime(user['otp_expiry'], "%Y-%m-%d %H:%M:%S.%f")
         if datetime.now() > expiry_time: return jsonify({"status": "error", "message": "OTP expired."})
         
         if user['otp'] == user_otp:
-            admin_email = os.getenv("SUPER_ADMIN_EMAIL")
-            if admin_email and email.lower() == admin_email.lower() and user['role'] != 'admin':
-                conn = sqlite3.connect(database.DB_NAME)
-                conn.execute("UPDATE users SET role = 'admin', credits = 10000 WHERE email = ?", (email,))
-                conn.commit()
-                conn.close()
-                user = database.get_user(email)
             session['user'] = email
             session['role'] = user['role']
             session['credits'] = user['credits']
@@ -432,6 +465,12 @@ def checkout():
 # --- DEEP CONSULT ROUTE ---
 @app.route('/deep_consult', methods=['POST'])
 def deep_consult():
+    print("\n=========================================")
+    print("Name: Mrinal Dashora")
+    print("Roll Number: 24BCON1413")
+    print("[LOG] Executing Premium Deep Consult Engine...")
+    print("=========================================\n")
+
     if 'user' not in session: return jsonify({"error": "Authentication Required."})
     if session.get('role') not in ['pro', 'premium', 'admin']: return jsonify({"error": "Premium Feature Locked 🔒"})
     
