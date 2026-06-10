@@ -28,7 +28,8 @@ def send_otp_email(to_email, otp):
     msg['From'] = os.getenv("MAIL_USERNAME")
     msg['To'] = to_email
     try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+        with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
+            smtp.starttls()
             smtp.login(os.getenv("MAIL_USERNAME"), os.getenv("MAIL_PASSWORD"))
             smtp.send_message(msg)
         return True
@@ -221,6 +222,7 @@ def checkout():
         return jsonify({"status": "success", "message": f"Payment Verified via UTR! {msg}", "redirect": url_for('studio')})
     except Exception as e:
         return jsonify({"error": str(e)})
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     if 'user' not in session: return jsonify({"error": "Authentication Required: Please login to run Pulse Stream analysis."})
@@ -362,7 +364,7 @@ def deep_consult():
                     f"spiked above your channel average. To trigger the recommendation system again:\n"
                     f"1. Duplicate the pacing of the first 10 seconds of this specific video.\n"
                     f"2. Use similar color grading and text layout in your next thumbnail.\n"
-                    f"3. Upload a direct follow-up or 'Part 2' to ride the existing algorithmic wave."
+                    f"3. Upload a direct follow-up or 'Part 2' to ride the algorithmic wave."
                 )
             else: advice = "Not enough recent data to calculate precise engagement metrics."
                 
